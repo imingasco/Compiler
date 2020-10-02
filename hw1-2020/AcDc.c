@@ -420,18 +420,30 @@ Program parser( FILE *source )
 void InitializeTable( SymbolTable *table )
 {
     int i;
-
-    for(i = 0 ; i < 26; i++)
-        table->table[i] = Notype;
+    for ( i = 0; i < 26; i++ )
+        table->next[i] = NULL;
+    table->end = false;
 }
 
-void add_table( SymbolTable *table, char c, DataType t )
+void add_table( SymbolTable *table, char *c, DataType t )
 {
-    int index = (int)(c - 'a');
+    int i, index;
+    int len = strlen(c);
+    SymbolTable *current = table;
 
-    if(table->table[index] != Notype)
+    for( i = 0; i < len; i++){
+        index = (int)(c[i] - 'a');
+        if(current->next[index] == NULL){
+            current->next[index] = (SymbolTable *)malloc(sizeof(SymbolTable));
+            InitializeTable(current->next[index]);
+        }
+        current = current->next[index];
+    }
+
+    if(current->end == true)
         printf("Error : id %c has been declared\n", c);//error
-    table->table[index] = t;
+    current->end = true;
+    current->type = t;
 }
 
 SymbolTable build( Program program )
@@ -442,7 +454,7 @@ SymbolTable build( Program program )
 
     InitializeTable(&table);
 
-    while(decls !=NULL){
+    while(decls != NULL){
         current = decls->first;
         add_table(&table, current.name, current.type);
         decls = decls->rest;
@@ -493,12 +505,24 @@ DataType generalize( Expression *left, Expression *right )
     return Int;
 }
 
-DataType lookup_table( SymbolTable *table, char c )
+DataType lookup_table( SymbolTable *table, char *c )
 {
-    int id = c-'a';
-    if( table->table[id] != Int && table->table[id] != Float)
-        printf("Error : identifier %c is not declared\n", c);//error
-    return table->table[id];
+    int i, id;
+    int len = strlen(c);
+    SymbolTable *current = table;
+    for( i = 0; i < len; i++ ){
+        if(current == NULL){
+            printf("Error: variable %s is not declared\n");
+            exit(1);
+        }
+        id = (int)(c[i] - 'a');
+        current = current->next[id];
+    }
+    if(current->end == false){
+        printf("Error: variable %s is not declared\n");
+        exit(1);
+    }
+    return current->type;
 }
 
 void checkexpression( Expression * expr, SymbolTable * table )

@@ -107,16 +107,16 @@ typedef struct Program{
 }Program;
 
 /* For building the symbol table */
+/*
 typedef struct SymbolTable{
     DataType table[26];
 } SymbolTable;
-/*
+*/
 typedef struct SymbolTable{
     DataType type;
     struct SymbolTable *next[26];
     bool end;
 } SymbolTable;
-*/
 
 
 Token getNumericToken( FILE *source, char c );
