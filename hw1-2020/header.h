@@ -115,7 +115,7 @@ typedef struct SymbolTable{
 typedef struct SymbolTable{
     DataType type;
     struct SymbolTable *next[26];
-    bool end;
+    int end;
 } SymbolTable;
 
 
@@ -128,18 +128,19 @@ Declarations *parseDeclarations( FILE *source );
 Expression *parseValue( FILE *source );
 Expression *parseExpressionTail( FILE *source, Expression *lvalue );
 Expression *parseExpression( FILE *source, Expression *lvalue );
-Statement makeAssignmentNode( char id, Expression *v, Expression *expr_tail );
-Statement makePrintNode( char id );
+Statement makeAssignmentNode( char *id, Expression *v, Expression *expr_tail );
+Statement makePrintNode( char *id );
 Statements *makeStatementTree( Statement stmt, Statements *stmts );
 Statement parseStatement( FILE *source, Token token );
 Statements *parseStatements( FILE * source );
 Program parser( FILE *source );
+void TraverseTable( SymbolTable *table, char *current );
 void InitializeTable( SymbolTable *table );
-void add_table( SymbolTable *table, char c, DataType t );
+void add_table( SymbolTable *table, char *c, DataType t );
 SymbolTable build( Program program );
 void convertType( Expression * old, DataType type );
 DataType generalize( Expression *left, Expression *right );
-DataType lookup_table( SymbolTable *table, char c );
+DataType lookup_table( SymbolTable *table, char *c );
 void checkexpression( Expression * expr, SymbolTable * table );
 void checkstmt( Statement *stmt, SymbolTable * table );
 void check( Program *program, SymbolTable * table);
