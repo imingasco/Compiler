@@ -134,6 +134,7 @@ Statements *makeStatementTree( Statement stmt, Statements *stmts );
 Statement parseStatement( FILE *source, Token token );
 Statements *parseStatements( FILE * source );
 Program parser( FILE *source );
+void PutTokenBack( FILE *source, char *token );
 void TraverseTable( SymbolTable *table, char *current );
 void InitializeTable( SymbolTable *table );
 void add_table( SymbolTable *table, char *c, DataType t );

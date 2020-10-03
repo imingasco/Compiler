@@ -44,6 +44,13 @@ int main( int argc, char *argv[] )
 /********************************************* 
   Scanning 
  *********************************************/
+void PutTokenBack( FILE *source, char *token){
+    int i;
+    int len = strlen(token);
+    for(i = len - 1; i >= 0; i--)
+        ungetc(token[i], source);
+}
+
 Token getNumericToken( FILE *source, char c )
 {
     Token token;
@@ -192,9 +199,7 @@ Declarations *parseDeclarations( FILE *source )
             return makeDeclarationTree( decl, decls );
         case PrintOp:
         case Alphabet:
-            len = strlen(token.tok);
-            for(i = len - 1; i >= 0; i--)
-                ungetc(token.tok[i], source);
+            PutTokenBack(source, token.tok);
             return NULL;
         case EOFsymbol:
             return NULL;
@@ -257,9 +262,7 @@ Expression *parseExpressionTail( FILE *source, Expression *lvalue )
             return parseExpressionTail(source, expr);
         case Alphabet:
         case PrintOp:
-            len = strlen(token.tok);
-            for(i = len - 1; i >= 0; i--)
-                ungetc(token.tok[i], source);
+            PutTokenBack(source, token.tok);
             return lvalue;
         case EOFsymbol:
             return lvalue;
@@ -292,9 +295,7 @@ Expression *parseExpression( FILE *source, Expression *lvalue )
             return parseExpressionTail(source, expr);
         case Alphabet:
         case PrintOp:
-            len = strlen(token.tok);
-            for(i = len - 1; i >= 0; i--)
-                ungetc(token.tok[i], source);
+            PutTokenBack(source, token.tok);
             return NULL;
         case EOFsymbol:
             return NULL;
