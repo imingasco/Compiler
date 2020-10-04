@@ -29,6 +29,7 @@ int main( int argc, char *argv[] )
             symtab = build(program);
             //TraverseTable(&symtab, debugger);
             check(&program, &symtab);
+            ConstantFold(&program);
             gencode(program, target);
         }
     }
@@ -643,6 +644,109 @@ void check( Program *program, SymbolTable * table )
     }
 }
 
+/***********************************************************************
+ Constant Folding
+ ************************************************************************/
+Expression *ReplaceConvertNode( Expression *expr ){
+    Expression *newNode = (Expression *)malloc(sizeof(Expression));
+    Value v;
+    v.type = FloatConst;
+    v.val.fvalue = (float)(expr->leftOperand->v.val.ivalue);
+    newNode->v = v;
+    newNode->leftOperand = newNode->rightOperand = NULL;
+    newNode->type = Float;
+    return newNode; 
+}
+
+Expression *FoldFloat( Expression *expr, float lvalue, float rvalue ){
+    Expression *newNode = (Expression *)malloc(sizeof(Expression));
+    Value v;
+    v.type = FloatConst;
+    switch(expr->v.type){
+        case PlusNode:
+            v.val.fvalue = lvalue + rvalue;
+            break;
+        case MinusNode:
+            v.val.fvalue = lvalue - rvalue;
+            break;
+        case MulNode:
+            v.val.fvalue = lvalue * rvalue;
+            break;
+        case DivNode:
+            v.val.fvalue = lvalue / rvalue;
+            break;
+        default:
+            break;
+    }
+    newNode->v = v;
+    newNode->leftOperand = newNode->rightOperand = NULL;
+    newNode->type = Float;
+    return newNode;
+}
+
+Expression *FoldInt( Expression *expr, int lvalue, int rvalue ){
+    Expression *newNode = (Expression *)malloc(sizeof(Expression));
+    Value v;
+    v.type = IntConst;
+    switch(expr->v.type){
+        case PlusNode:
+            v.val.ivalue = lvalue + rvalue;
+            break;
+        case MinusNode:
+            v.val.ivalue = lvalue - rvalue;
+            break;
+        case MulNode:
+            v.val.ivalue = lvalue * rvalue;
+            break;
+        case DivNode:
+            v.val.ivalue = lvalue / rvalue;
+            break;
+        default:
+            break;
+    }
+    newNode->v = v;
+    newNode->leftOperand = newNode->rightOperand = NULL;
+    newNode->type = Int;
+    return newNode;
+}
+
+Expression *TraverseExpressionTree( Expression *expr ){
+    if(!expr->leftOperand && !expr->rightOperand)
+        return expr;
+    if(expr->leftOperand)
+        expr->leftOperand = TraverseExpressionTree( expr->leftOperand );
+    if(expr->rightOperand)
+        expr->rightOperand = TraverseExpressionTree( expr->rightOperand );
+    Expression *left = expr->leftOperand;
+    Expression *right = expr->rightOperand;
+    // left is not NULL, right is NULL: convertNode
+    if(left && !right && left->v.type == IntConst)
+        return ReplaceConvertNode( expr ); 
+    // operatorNode
+    else if(left && right){
+        if(left->v.type == FloatConst && right->v.type == FloatConst){
+            float lvalue = left->v.val.fvalue;
+            float rvalue = right->v.val.fvalue;
+            return FoldFloat( expr, lvalue, rvalue );
+        }       
+        else if(left->v.type == IntConst && right->v.type == IntConst){
+            int lvalue = left->v.val.ivalue;
+            int rvalue = right->v.val.ivalue;
+            return FoldInt( expr, lvalue, rvalue );
+        }
+    }
+    return expr;
+}
+
+void ConstantFold( Program *program ){
+    Statements *stmts = program->statements;
+    while(stmts != NULL){
+        Statement stmt = stmts->first;
+        if(stmt.type == Assignment)
+            stmt.stmt.assign.expr = TraverseExpressionTree( stmt.stmt.assign.expr );
+        stmts = stmts->rest;
+    }
+}
 
 /***********************************************************************
   Code generation
