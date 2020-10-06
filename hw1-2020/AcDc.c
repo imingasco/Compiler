@@ -105,6 +105,7 @@ Token scanner( FILE *source )
             return getNumericToken(source, c);
 
         token.tok[len++] = c;
+        token.tok[len] = '\0';
         //printf("[scanner] first token.tok = %s\n", token.tok);
         // token.tok[1] = '\0';
         if( islower(c) ){
@@ -116,7 +117,7 @@ Token scanner( FILE *source )
                 //printf("[scanner] then read %c\n", c);
             }
             ungetc(c, source);
-            token.tok[len++] = '\0';
+            token.tok[len] = '\0';
             //printf("[scanner] then token.tok = %s\n", token.tok);
             if( strcmp(token.tok, "f") == 0 )
                 token.type = FloatDeclaration;
@@ -337,34 +338,6 @@ Expression *parseExpression( FILE *source, Expression *lvalue )
     Token token = scanner(source);
     Expression *expr;
     printf("[parseExpression] token.tok = %s\n", token.tok);
-    if(lvalue){
-        switch(lvalue->v.type){
-            case IntConst:
-                printf("left node is %d\n", lvalue->v.val.ivalue);
-                break;
-            case FloatConst:
-                printf("left node is %f\n", lvalue->v.val.fvalue);
-                break;
-            case Identifier:
-                printf("left node is %s\n", lvalue->v.val.id);
-                break;
-            case PlusNode:
-                printf("left node is Plus\n");
-                break;
-            case MinusNode:
-                printf("left node is Minus\n");
-                break;
-            case MulNode:
-                printf("left node is Mul\n"); 
-                break;
-            case DivNode:
-                printf("left node is Div\n");
-                break;
-            case IntToFloatConvertNode:
-                printf("left node is Convert\n");
-                break;
-        }
-    }
 
     switch(token.type){
         case PlusOp:
@@ -385,7 +358,7 @@ Expression *parseExpression( FILE *source, Expression *lvalue )
             expr = (Expression *)malloc( sizeof(Expression) );
             (expr->v).type = MulNode;
             (expr->v).val.op = Mul;
-            if(lvalue->rightOperand == NULL){
+            if(lvalue == NULL || lvalue->rightOperand == NULL){
                 expr->leftOperand = lvalue;
                 expr->rightOperand = parseValue(source);
                 return parseExpression(source, expr);
