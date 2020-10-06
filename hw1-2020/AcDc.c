@@ -341,6 +341,10 @@ Expression *parseExpression( FILE *source, Expression *lvalue )
 
     switch(token.type){
         case PlusOp:
+            if(lvalue == NULL){
+                PutTokenBack(source, token.tok);
+                return NULL;
+            }
             expr = (Expression *)malloc( sizeof(Expression) );
             (expr->v).type = PlusNode;
             (expr->v).val.op = Plus;
@@ -348,6 +352,10 @@ Expression *parseExpression( FILE *source, Expression *lvalue )
             expr->rightOperand = parseValue(source);
             return parseExpression(source, expr);
         case MinusOp:
+            if(lvalue == NULL){
+                PutTokenBack(source, token.tok);
+                return NULL;
+            }
             expr = (Expression *)malloc( sizeof(Expression) );
             (expr->v).type = MinusNode;
             (expr->v).val.op = Minus;
@@ -358,7 +366,12 @@ Expression *parseExpression( FILE *source, Expression *lvalue )
             expr = (Expression *)malloc( sizeof(Expression) );
             (expr->v).type = MulNode;
             (expr->v).val.op = Mul;
-            if(lvalue == NULL || lvalue->rightOperand == NULL){
+            if(lvalue == NULL){
+                expr->leftOperand = lvalue;
+                expr->rightOperand = parseValue(source);
+                return expr;
+            }
+            else if(lvalue->rightOperand == NULL){
                 expr->leftOperand = lvalue;
                 expr->rightOperand = parseValue(source);
                 return parseExpression(source, expr);
@@ -373,7 +386,12 @@ Expression *parseExpression( FILE *source, Expression *lvalue )
             expr = (Expression *)malloc( sizeof(Expression) );
             (expr->v).type = DivNode;
             (expr->v).val.op = Div;
-            if(lvalue == NULL || lvalue->rightOperand == NULL){
+            if(lvalue == NULL){
+                expr->leftOperand = lvalue;
+                expr->rightOperand = parseValue(source);
+                return expr;
+            }
+            else if(lvalue->rightOperand == NULL){
                 expr->leftOperand = lvalue;
                 expr->rightOperand = parseValue(source);
                 return parseExpression(source, expr);
@@ -385,6 +403,10 @@ Expression *parseExpression( FILE *source, Expression *lvalue )
                 return parseExpression(source, lvalue);
             }
         case RightPar:
+            if(lvalue == NULL){
+                PutTokenBack(source, token.tok);
+                return NULL;
+            }
             expr = parseExpression(source, NULL);
             PutTokenBack(source, token.tok);
             if(expr == NULL){
