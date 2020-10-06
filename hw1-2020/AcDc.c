@@ -219,6 +219,7 @@ Declarations *parseDeclarations( FILE *source )
 Expression *parseValue( FILE *source )
 {
     Token token = scanner(source);
+    printf("[parseValue] token.tok = %s\n", token.tok);
     Expression *value = (Expression *)malloc( sizeof(Expression) );
     value->leftOperand = value->rightOperand = NULL;
     Expression *parValue, *parExpr;
@@ -335,6 +336,35 @@ Expression *parseExpression( FILE *source, Expression *lvalue )
     int i, len;
     Token token = scanner(source);
     Expression *expr;
+    printf("[parseExpression] token.tok = %s\n", token.tok);
+    if(lvalue){
+        switch(lvalue->v.type){
+            case IntConst:
+                printf("left node is %d\n", lvalue->v.val.ivalue);
+                break;
+            case FloatConst:
+                printf("left node is %f\n", lvalue->v.val.fvalue);
+                break;
+            case Identifier:
+                printf("left node is %s\n", lvalue->v.val.id);
+                break;
+            case PlusNode:
+                printf("left node is Plus\n");
+                break;
+            case MinusNode:
+                printf("left node is Minus\n");
+                break;
+            case MulNode:
+                printf("left node is Mul\n"); 
+                break;
+            case DivNode:
+                printf("left node is Div\n");
+                break;
+            case IntToFloatConvertNode:
+                printf("left node is Convert\n");
+                break;
+        }
+    }
 
     switch(token.type){
         case PlusOp:
@@ -370,7 +400,7 @@ Expression *parseExpression( FILE *source, Expression *lvalue )
             expr = (Expression *)malloc( sizeof(Expression) );
             (expr->v).type = DivNode;
             (expr->v).val.op = Div;
-            if(lvalue->rightOperand == NULL){
+            if(lvalue == NULL || lvalue->rightOperand == NULL){
                 expr->leftOperand = lvalue;
                 expr->rightOperand = parseValue(source);
                 return parseExpression(source, expr);
@@ -383,6 +413,7 @@ Expression *parseExpression( FILE *source, Expression *lvalue )
             }
         case RightPar:
             expr = parseExpression(source, NULL);
+            PutTokenBack(source, token.tok);
             if(expr == NULL){
                 return lvalue;
             }
@@ -406,7 +437,7 @@ Statement parseStatement( FILE *source, Token token )
 {
     Token next_token;
     Expression *value, *expr;
-    //printf("token.tok = %s", token.tok);
+    //printf("token.tok = %s\n", token.tok);
     switch(token.type){
         case Alphabet:
             next_token = scanner(source);
@@ -445,7 +476,7 @@ Statements *parseStatements( FILE * source )
 {
 
     Token token = scanner(source);
-    //printf("[parseStatements] token.tok = %s\n", token.tok);
+    printf("[parseStatements] token.tok = %s\n", token.tok);
     Statement stmt;
     Statements *stmts;
 
