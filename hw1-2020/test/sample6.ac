@@ -1,0 +1,11 @@
+i abcc
+f bcdd
+i cdee
+i deff
+abcc = 1
+bcdd = 2.1
+cdee = 1
+deff = 2
+cdee = abcc + deff
+p cdee
+p deff

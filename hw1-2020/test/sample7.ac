@@ -1,0 +1,14 @@
+i abcc
+f bcdd
+i cdee
+i deff
+f zzz
+abcc = 1
+bcdd = 2.1
+cdee = 1
+deff = 2
+zzz = 3.3
+cdee = abcc + 3 + 4 + deff
+bcdd = (5.5 - 1) / 2 + zzz
+p cdee
+p deff
