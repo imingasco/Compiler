@@ -146,6 +146,12 @@ Token scanner( FILE *source )
             case '/':
                 token.type = DivOp;
                 return token;
+            case '(':
+                token.type = LeftPar;
+                return token;
+            case ')':
+                token.type = RightPar;
+                return token;
             case EOF:
                 token.type = EOFsymbol;
                 token.tok[0] = '\0';
@@ -215,6 +221,7 @@ Expression *parseValue( FILE *source )
     Token token = scanner(source);
     Expression *value = (Expression *)malloc( sizeof(Expression) );
     value->leftOperand = value->rightOperand = NULL;
+    Expression *parValue, *parExpr;
 
     switch(token.type){
         case Alphabet:
@@ -232,14 +239,23 @@ Expression *parseValue( FILE *source )
             (value->v).val.fvalue = atof(token.tok);
             //printf("fval = %f\n", (value->v).val.fvalue);
             break;
+        case LeftPar:
+            parValue = parseValue(source);
+            parExpr = parseExpression(source, parValue);
+            Token tokenCheck = scanner(source);
+            if(tokenCheck.type != RightPar){
+                printf("Syntax Error: Expect a Right Parenthese %s\n", token.tok);
+                exit(1);
+            }
+            return parExpr;
         default:
-            printf("Syntax Error: Expect Identifier or a Number %s\n", token.tok);
+            printf("Syntax Error: Expect Identifier, a Number, or a Left Parenthese %s\n", token.tok);
             exit(1);
     }
 
     return value;
 }
-
+/*
 Expression *parseExpressionTail( FILE *source, Expression *lvalue )
 {
     int i, len;
@@ -291,6 +307,16 @@ Expression *parseExpressionTail( FILE *source, Expression *lvalue )
                 lvalue->rightOperand = expr;
                 return parseExpressionTail(source, lvalue);
             }
+        case RightPar:
+            expr = parseExpressionTail(source, NULL);
+            ungetc(')', source); // verify the if it is matched in parseValue
+            if(expr == NULL){
+                return lvalue;
+            }
+            else{
+                expr->leftOperand = lvalue;
+                return expr;
+            }
         case Alphabet:
         case PrintOp:
             PutTokenBack(source, token.tok);
@@ -302,6 +328,7 @@ Expression *parseExpressionTail( FILE *source, Expression *lvalue )
             exit(1);
     }
 }
+*/
 
 Expression *parseExpression( FILE *source, Expression *lvalue )
 {
@@ -316,14 +343,14 @@ Expression *parseExpression( FILE *source, Expression *lvalue )
             (expr->v).val.op = Plus;
             expr->leftOperand = lvalue;
             expr->rightOperand = parseValue(source);
-            return parseExpressionTail(source, expr);
+            return parseExpression(source, expr);
         case MinusOp:
             expr = (Expression *)malloc( sizeof(Expression) );
             (expr->v).type = MinusNode;
             (expr->v).val.op = Minus;
             expr->leftOperand = lvalue;
             expr->rightOperand = parseValue(source);
-            return parseExpressionTail(source, expr);
+            return parseExpression(source, expr);
         case MulOp:
             expr = (Expression *)malloc( sizeof(Expression) );
             (expr->v).type = MulNode;
@@ -331,13 +358,13 @@ Expression *parseExpression( FILE *source, Expression *lvalue )
             if(lvalue->rightOperand == NULL){
                 expr->leftOperand = lvalue;
                 expr->rightOperand = parseValue(source);
-                return parseExpressionTail(source, expr);
+                return parseExpression(source, expr);
             }
             else{
                 expr->leftOperand = lvalue->rightOperand;
                 expr->rightOperand = parseValue(source);
                 lvalue->rightOperand = expr;
-                return parseExpressionTail(source, lvalue);
+                return parseExpression(source, lvalue);
             }
         case DivOp:
             expr = (Expression *)malloc( sizeof(Expression) );
@@ -346,20 +373,29 @@ Expression *parseExpression( FILE *source, Expression *lvalue )
             if(lvalue->rightOperand == NULL){
                 expr->leftOperand = lvalue;
                 expr->rightOperand = parseValue(source);
-                return parseExpressionTail(source, expr);
+                return parseExpression(source, expr);
             }
             else{
                 expr->leftOperand = lvalue->rightOperand;
                 expr->rightOperand = parseValue(source);
                 lvalue->rightOperand = expr;
-                return parseExpressionTail(source, lvalue);
+                return parseExpression(source, lvalue);
+            }
+        case RightPar:
+            expr = parseExpression(source, NULL);
+            if(expr == NULL){
+                return lvalue;
+            }
+            else{
+                expr->leftOperand = lvalue;
+                return expr;
             }
         case Alphabet:
         case PrintOp:
             PutTokenBack(source, token.tok);
-            return NULL;
+            return lvalue;
         case EOFsymbol:
-            return NULL;
+            return lvalue;
         default:
             printf("Syntax Error: Expect a numeric value or an identifier %s\n", token.tok);
             exit(1);
@@ -384,7 +420,7 @@ Statement parseStatement( FILE *source, Token token )
                     printf("[parseStatement] fvalue = %f\n", value->v.val.fvalue);
                 */
                 expr = parseExpression(source, value);
-                return makeAssignmentNode(token.tok, value, expr);
+                return makeAssignmentNode(token.tok, expr);
             }
             else{
                 printf("Syntax Error: Expect an assignment op %s\n", next_token.tok);
@@ -460,7 +496,7 @@ Declarations *makeDeclarationTree( Declaration decl, Declarations *decls )
 }
 
 
-Statement makeAssignmentNode( char *id, Expression *v, Expression *expr_tail )
+Statement makeAssignmentNode( char *id, Expression *expr)
 {
     Statement stmt;
     AssignmentStatement assign;
@@ -468,10 +504,7 @@ Statement makeAssignmentNode( char *id, Expression *v, Expression *expr_tail )
     stmt.type = Assignment;
     //printf("read id = %s\n", id);
     strcpy(assign.id, id);
-    if(expr_tail == NULL)
-        assign.expr = v;
-    else
-        assign.expr = expr_tail;
+    assign.expr = expr;
     stmt.stmt.assign = assign;
 
     return stmt;
