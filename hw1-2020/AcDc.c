@@ -839,8 +839,9 @@ Expression *TraverseExpressionTree( Expression *expr ){
     Expression *left = expr->leftOperand;
     Expression *right = expr->rightOperand;
     // left is not NULL, right is NULL: convertNode
-    if(left && !right && left->v.type == IntConst)
+    if(left && !right && left->v.type == IntConst){
         return ReplaceConvertNode( expr ); 
+    }
     // operatorNode
     else if(left && right){
         if(left->v.type == FloatConst && right->v.type == FloatConst){
@@ -861,8 +862,10 @@ void ConstantFold( Program *program ){
     Statements *stmts = program->statements;
     while(stmts != NULL){
         Statement stmt = stmts->first;
-        if(stmt.type == Assignment)
+        if(stmt.type == Assignment){
             stmt.stmt.assign.expr = TraverseExpressionTree( stmt.stmt.assign.expr );
+            stmts->first = stmt;
+        }
         stmts = stmts->rest;
     }
 }
@@ -936,6 +939,7 @@ void gencode(Program prog, FILE * target)
                 fprintf(target,"p\n");
                 break;
             case Assignment:
+                print_expr(stmt.stmt.assign.expr);
                 fprint_expr(target, stmt.stmt.assign.expr);
                 /*
                    if(stmt.stmt.assign.type == Int){
@@ -995,6 +999,7 @@ void print_expr(Expression *expr)
         }
         print_expr(expr->rightOperand);
     }
+    printf("\n");
 }
 
 void test_parser( FILE *source )
