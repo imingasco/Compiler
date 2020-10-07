@@ -220,7 +220,7 @@ Declarations *parseDeclarations( FILE *source )
 Expression *parseValue( FILE *source )
 {
     Token token = scanner(source);
-    printf("[parseValue] token.tok = %s\n", token.tok);
+    //printf("[parseValue] token.tok = %s\n", token.tok);
     Expression *value = (Expression *)malloc( sizeof(Expression) );
     value->leftOperand = value->rightOperand = NULL;
     Expression *parValue, *parExpr;
@@ -257,87 +257,13 @@ Expression *parseValue( FILE *source )
 
     return value;
 }
-/*
-Expression *parseExpressionTail( FILE *source, Expression *lvalue )
-{
-    int i, len;
-    Token token = scanner(source);
-    Expression *expr;
-
-    switch(token.type){
-        case PlusOp:
-            expr = (Expression *)malloc( sizeof(Expression) );
-            (expr->v).type = PlusNode;
-            (expr->v).val.op = Plus;
-            expr->leftOperand = lvalue;
-            expr->rightOperand = parseValue(source);
-            return parseExpressionTail(source, expr);
-        case MinusOp:
-            expr = (Expression *)malloc( sizeof(Expression) );
-            (expr->v).type = MinusNode;
-            (expr->v).val.op = Minus;
-            expr->leftOperand = lvalue;
-            expr->rightOperand = parseValue(source);
-            return parseExpressionTail(source, expr);
-        case MulOp:
-            expr = (Expression *)malloc( sizeof(Expression) );
-            (expr->v).type = MulNode;
-            (expr->v).val.op = Mul;
-            if(lvalue->rightOperand == NULL){
-                expr->leftOperand = lvalue;
-                expr->rightOperand = parseValue(source);
-                return parseExpressionTail(source, expr);
-            }
-            else{
-                expr->leftOperand = lvalue->rightOperand;
-                expr->rightOperand = parseValue(source);
-                lvalue->rightOperand = expr;
-                return parseExpressionTail(source, lvalue);
-            }
-        case DivOp:
-            expr = (Expression *)malloc( sizeof(Expression) );
-            (expr->v).type = DivNode;
-            (expr->v).val.op = Div;
-            if(lvalue->rightOperand == NULL){
-                expr->leftOperand = lvalue;
-                expr->rightOperand = parseValue(source);
-                return parseExpressionTail(source, expr);
-            }
-            else{
-                expr->leftOperand = lvalue->rightOperand;
-                expr->rightOperand = parseValue(source);
-                lvalue->rightOperand = expr;
-                return parseExpressionTail(source, lvalue);
-            }
-        case RightPar:
-            expr = parseExpressionTail(source, NULL);
-            ungetc(')', source); // verify the if it is matched in parseValue
-            if(expr == NULL){
-                return lvalue;
-            }
-            else{
-                expr->leftOperand = lvalue;
-                return expr;
-            }
-        case Alphabet:
-        case PrintOp:
-            PutTokenBack(source, token.tok);
-            return lvalue;
-        case EOFsymbol:
-            return lvalue;
-        default:
-            printf("Syntax Error: Expect a numeric value or an identifier %s\n", token.tok);
-            exit(1);
-    }
-}
-*/
 
 Expression *parseExpression( FILE *source, Expression *lvalue )
 {
     int i, len;
     Token token = scanner(source);
     Expression *expr;
-    printf("[parseExpression] token.tok = %s\n", token.tok);
+    //printf("[parseExpression] token.tok = %s\n", token.tok);
 
     switch(token.type){
         case PlusOp:
@@ -471,7 +397,7 @@ Statements *parseStatements( FILE * source )
 {
 
     Token token = scanner(source);
-    printf("[parseStatements] token.tok = %s\n", token.tok);
+    //printf("[parseStatements] token.tok = %s\n", token.tok);
     Statement stmt;
     Statements *stmts;
 
@@ -939,7 +865,7 @@ void gencode(Program prog, FILE * target)
                 fprintf(target,"p\n");
                 break;
             case Assignment:
-                print_expr(stmt.stmt.assign.expr);
+                //print_expr(stmt.stmt.assign.expr);
                 fprint_expr(target, stmt.stmt.assign.expr);
                 /*
                    if(stmt.stmt.assign.type == Int){
