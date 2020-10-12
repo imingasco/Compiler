@@ -116,6 +116,7 @@ typedef struct SymbolTable{
     DataType type;
     struct SymbolTable *next[26];
     int end;
+    int index;
 } SymbolTable;
 
 
@@ -137,7 +138,7 @@ Program parser( FILE *source );
 void PutTokenBack( FILE *source, char *token );
 void TraverseTable( SymbolTable *table, char *current );
 void InitializeTable( SymbolTable *table );
-void add_table( SymbolTable *table, char *c, DataType t );
+void add_table( SymbolTable *table, char *c, DataType t, int nowindex );
 SymbolTable build( Program program );
 void convertType( Expression * old, DataType type );
 DataType generalize( Expression *left, Expression *right );
@@ -151,8 +152,8 @@ Expression *FoldFloat ( Expression *expr, float lvalue, float rvalue );
 Expression *FoldInt ( Expression *expr, int lvalue, int rvalue );
 Expression *TraverseExpressionTree( Expression *expr );
 void fprint_op( FILE *target, ValueType op );
-void fprint_expr( FILE *target, Expression *expr );
-void gencode( Program prog, FILE * target );
+void fprint_expr( FILE *target, Expression *expr, SymbolTable *symtab );
+void gencode( Program prog, FILE * target, SymbolTable *symtab );
 
 void print_expr( Expression *expr );
 void test_parser( FILE *source );

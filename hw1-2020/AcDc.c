@@ -30,7 +30,7 @@ int main( int argc, char *argv[] )
             //TraverseTable(&symtab, debugger);
             check(&program, &symtab);
             ConstantFold(&program);
-            gencode(program, target);
+            gencode(program, target, &symtab);
         }
     }
     else{
@@ -114,6 +114,8 @@ Token scanner( FILE *source )
             while( !isspace(c) ){
                 token.tok[len++] = c;
                 c = fgetc(source);
+                if( !islower(c) && !isspace(c) )
+                    printf("invalid character for variable name: %c\n", c);
                 //printf("[scanner] then read %c\n", c);
             }
             ungetc(c, source);
@@ -519,9 +521,10 @@ void InitializeTable( SymbolTable *table )
     for ( i = 0; i < 26; i++ )
         table->next[i] = NULL;
     table->end = 0;
+    table->index = -1;
 }
 
-void add_table( SymbolTable *table, char *c, DataType t )
+void add_table( SymbolTable *table, char *c, DataType t, int nowindex )
 {
     int i, index;
     int len = strlen(c);
@@ -542,6 +545,7 @@ void add_table( SymbolTable *table, char *c, DataType t )
         printf("Error : id %s has been declared\n", c);//error
     current->end = 1;
     current->type = t;
+    current->index = nowindex;
 }
 
 SymbolTable build( Program program )
@@ -549,12 +553,13 @@ SymbolTable build( Program program )
     SymbolTable table;
     Declarations *decls = program.declarations;
     Declaration current;
+    int index = 0;
 
     InitializeTable(&table);
 
     while(decls != NULL){
         current = decls->first;
-        add_table(&table, current.name, current.type);
+        add_table(&table, current.name, current.type, index++);
         decls = decls->rest;
     }
 
@@ -799,6 +804,14 @@ void ConstantFold( Program *program ){
 /***********************************************************************
   Code generation
  ************************************************************************/
+char getRegister( char *name, SymbolTable *symtab ){
+    int len = strlen(name);
+    SymbolTable *current = symtab;
+    for(int i = 0; i < len; i++)
+        current = current->next[(int)(name[i] - 'a')];
+    return (char)('a' + current->index);
+}
+
 void fprint_op( FILE *target, ValueType op )
 {
     switch(op){
@@ -820,13 +833,13 @@ void fprint_op( FILE *target, ValueType op )
     }
 }
 
-void fprint_expr( FILE *target, Expression *expr)
+void fprint_expr( FILE *target, Expression *expr, SymbolTable *symtab )
 {
 
     if(expr->leftOperand == NULL){
         switch( (expr->v).type ){
             case Identifier:
-                fprintf(target,"l%s\n",(expr->v).val.id);
+                fprintf(target,"l%c\n",getRegister((expr->v).val.id, symtab));
                 break;
             case IntConst:
                 fprintf(target,"%d\n",(expr->v).val.ivalue);
@@ -840,33 +853,34 @@ void fprint_expr( FILE *target, Expression *expr)
         }
     }
     else{
-        fprint_expr(target, expr->leftOperand);
+        fprint_expr(target, expr->leftOperand, symtab);
         if(expr->rightOperand == NULL){
             fprintf(target,"5k\n");
         }
         else{
             //	fprint_right_expr(expr->rightOperand);
-            fprint_expr(target, expr->rightOperand);
+            fprint_expr(target, expr->rightOperand, symtab);
             fprint_op(target, (expr->v).type);
         }
     }
 }
 
-void gencode(Program prog, FILE * target)
+void gencode(Program prog, FILE * target, SymbolTable *symtab)
 {
     Statements *stmts = prog.statements;
     Statement stmt;
+    int used[26];
 
     while(stmts != NULL){
         stmt = stmts->first;
         switch(stmt.type){
             case Print:
-                fprintf(target,"l%s\n",stmt.stmt.variable);
+                fprintf(target,"l%c\n",getRegister(stmt.stmt.variable, symtab));
                 fprintf(target,"p\n");
                 break;
             case Assignment:
                 //print_expr(stmt.stmt.assign.expr);
-                fprint_expr(target, stmt.stmt.assign.expr);
+                fprint_expr(target, stmt.stmt.assign.expr, symtab);
                 /*
                    if(stmt.stmt.assign.type == Int){
                    fprintf(target,"0 k\n");
@@ -874,7 +888,7 @@ void gencode(Program prog, FILE * target)
                    else if(stmt.stmt.assign.type == Float){
                    fprintf(target,"5 k\n");
                    }*/
-                fprintf(target,"s%s\n",stmt.stmt.assign.id);
+                fprintf(target,"s%c\n",getRegister(stmt.stmt.assign.id, symtab));
                 fprintf(target,"0 k\n");
                 break;
         }
