@@ -89,6 +89,19 @@ Token getNumericToken( FILE *source, char c )
     return token;
 }
 
+Token getVariableName(FILE *source, char c){
+    Token token;
+    int i = 0;
+    while(islower(c)){
+        token.tok[i++] = c;
+        c = fgetc(source);
+    }
+    ungetc(c, source);
+    token.tok[i] = '\0';
+    token.type = Alphabet;
+    return token;
+}
+
 Token scanner( FILE *source )
 {
     char c;
@@ -109,17 +122,8 @@ Token scanner( FILE *source )
         //printf("[scanner] first token.tok = %s\n", token.tok);
         // token.tok[1] = '\0';
         if( islower(c) ){
-            c = fgetc(source);
             //printf("[scanner] then read %c\n", c);
-            while( !isspace(c) ){
-                token.tok[len++] = c;
-                c = fgetc(source);
-                if( !islower(c) && !isspace(c) )
-                    printf("invalid character for variable name: %c\n", c);
-                //printf("[scanner] then read %c\n", c);
-            }
-            ungetc(c, source);
-            token.tok[len] = '\0';
+            token = getVariableName(source, c);
             //printf("[scanner] then token.tok = %s\n", token.tok);
             if( strcmp(token.tok, "f") == 0 )
                 token.type = FloatDeclaration;
@@ -127,8 +131,6 @@ Token scanner( FILE *source )
                 token.type = IntegerDeclaration;
             else if( strcmp(token.tok, "p") == 0 )
                 token.type = PrintOp;
-            else
-                token.type = Alphabet;
             //printf("[scanner] token.tok = %s\n", token.tok);
             return token;
         }
@@ -177,6 +179,8 @@ Token scanner( FILE *source )
 Declaration parseDeclaration( FILE *source, Token token )
 {
     Token token2;
+    int i = 0;
+    int len;
     switch(token.type){
         case FloatDeclaration:
         case IntegerDeclaration:
@@ -187,6 +191,7 @@ Declaration parseDeclaration( FILE *source, Token token )
                 printf("Syntax Error: %s cannot be used as id\n", token2.tok);
                 exit(1);
             }
+            len = strlen(token2.tok);
             return makeDeclarationNode( token, token2 );
         default:
             printf("Syntax Error: Expect Declaration %s\n", token.tok);
@@ -199,6 +204,7 @@ Declarations *parseDeclarations( FILE *source )
     int i = 0;
     int len = 0;
     Token token = scanner(source);
+    //printf("[parseDeclarations] token.tok = %s\n", token.tok);
     Declaration decl;
     Declarations *decls;
     switch(token.type){
@@ -360,7 +366,7 @@ Statement parseStatement( FILE *source, Token token )
 {
     Token next_token;
     Expression *value, *expr;
-    //printf("token.tok = %s\n", token.tok);
+    printf("token.tok = %s\n", token.tok);
     switch(token.type){
         case Alphabet:
             next_token = scanner(source);
