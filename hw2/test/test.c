@@ -19,7 +19,7 @@ int main()
 	f = read();
     func(c,e);
 	write(d);
-	d = 0;  /* 3: this is /* the end ***/
+	d = 0;  /* 3: this is /*  the end//**** ***/
 	
     return 0;
 }
