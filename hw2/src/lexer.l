@@ -63,11 +63,11 @@ WS	 [ \t]+
 Int_constant {digit}+
 Float_constant ({digit}+\.{digit}*|{digit}*\.{digit}+)
 String_constant \"("\n"|\\\"|[^"])*\"
-left_comment  \/\*
-right_comment \*\/
+left_comment  "/*"
+right_comment \*+"/"
 comment     {left_comment}([^*]|(\*)+[^/*])*({right_comment})
 
-OP_add      "\+"
+OP_add      "+"
 OP_minus    "-"
 OP_div      "/"
 OP_mul      "*"
@@ -82,17 +82,17 @@ OP_and      "&&"
 OP_not      "!"
 OP_assign   "="
 
-newline     "\n"
+newline  "\n"
 
-DL_lparen   "("
-DL_rparen   ")"
-DL_lbrace   "{"
-DL_rbrace   "}"
-DL_lbrack   "["
-DL_rbrack   "]"
-DL_comma    ","
-DL_semicol  ";"
-DL_dot      "."
+DL_lparen "("
+DL_rparen ")"
+DL_lbrace "{"
+DL_rbrace "}"
+DL_lbrack "\["
+DL_rbrack "\]"
+DL_comma  ","
+DL_semicol ";"
+DL_dot  "."
 
 error    .
 
@@ -107,8 +107,9 @@ error    .
 {reserved_for}      /* return FOR; */
 {reserved_void}     /* return VOID; */
 {reserved_while}    /* return WHILE; */
-{comment}    printf("%s\n", yytext);
-
+{comment}   {
+                printf("%s\n", yytext);
+            }
 {ID}    { 
 			ptr = lookup(yytext);
 			if (ptr == NULL)
@@ -116,8 +117,6 @@ error    .
 			else 
 			     ptr->counter++;
 		}
-
-{DL_dot}        {printf("a dot\n");}
 {Int_constant}      /* return INT_CONST; */
 {Float_constant}    /* return FLOAT_CONST; */
 {String_constant}   /* return STR_CONST; */ {/*printf("read %s at %d\n", yytext, linenumber);*/}
@@ -144,12 +143,13 @@ error    .
 {DL_rbrace}     /* return MK_RBRACE; */
 {DL_lbrack}     /* return MK_LBRACK; */
 {DL_rbrack}     /* return MK_RBRACE; */
+{DL_dot}        {}
 {DL_comma}      {}
 {DL_semicol}    {}
 {error}         printf("ERR \n");/* return ERROR; */
 %%
 
-main(int argc, char **argv)
+int main(int argc, char **argv)
 {
  argc--; ++argv;
    if (argc > 0)

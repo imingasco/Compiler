@@ -7,6 +7,7 @@ int func(int a, int b)
 
 int main()
 {
+    .
 	/* 1: this is just a sample */
     int c, d;
 	float f,g;
@@ -19,7 +20,8 @@ int main()
 	f = read();
     func(c,e);
 	write(d);
-	d = 0;  /* 3: this is /*  the end//**** ***/
-	
+	d = 0;  /*** 3: this is /*  the end//  **/
+    write("sjakda\"asd\"asdk");
+    /* 4: **/
     return 0;
 }
