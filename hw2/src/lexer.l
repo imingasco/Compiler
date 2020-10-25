@@ -64,8 +64,8 @@ Int_constant {digit}+
 Float_constant ({digit}+\.{digit}*|{digit}*\.{digit}+)
 String_constant \"("\n"|\\\"|[^\"])*\"
 left_comment  \/\*
-right_comment \*\/
-comment     {left_comment}([^\*]|\*[^\/])*(\*?{right_comment})
+right_comment \*+\/
+comment     {left_comment}([^\*]|(\*)+[^\/\*])*({right_comment})
 
 OP_add      "\+"
 OP_minus    "-"
