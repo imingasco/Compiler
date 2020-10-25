@@ -150,7 +150,7 @@ error    .
 {error}         printf("ERR \n");/* return ERROR; */
 %%
 
-intmain(int argc, char **argv)
+int main(int argc, char **argv)
 {
  argc--; ++argv;
    if (argc > 0)
