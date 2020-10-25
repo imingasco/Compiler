@@ -62,10 +62,10 @@ ID	 {letter}({letter}|{digit}|"_")*
 WS	 [ \t]+
 Int_constant {digit}+
 Float_constant ({digit}+\.{digit}*|{digit}*\.{digit}+)
-String_constant \"("\n"|\\\"|[^\"])*\"
+String_constant \"("\n"|\\\"|[^"])*\"
 left_comment  \/\*
-right_comment \*+\/
-comment     {left_comment}([^\*]|(\*)+[^\/\*])*({right_comment})
+right_comment \*\/
+comment     {left_comment}([^*]|(\*)+[^/*])*({right_comment})
 
 OP_add      "\+"
 OP_minus    "-"
@@ -117,6 +117,7 @@ error    .
 			     ptr->counter++;
 		}
 
+{DL_dot}        {printf("a dot\n");}
 {Int_constant}      /* return INT_CONST; */
 {Float_constant}    /* return FLOAT_CONST; */
 {String_constant}   /* return STR_CONST; */ {/*printf("read %s at %d\n", yytext, linenumber);*/}
@@ -145,7 +146,6 @@ error    .
 {DL_rbrack}     /* return MK_RBRACE; */
 {DL_comma}      {}
 {DL_semicol}    {}
-{DL_dot}        {}
 {error}         printf("ERR \n");/* return ERROR; */
 %%
 
