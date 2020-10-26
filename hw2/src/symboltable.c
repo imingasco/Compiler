@@ -67,23 +67,43 @@ void insertID(char *name){
 
 void printSym(symtab* ptr) 
 {
-	    printf(" Name = %s \n", ptr->lexeme);
-	    printf(" References = %d \n", ptr->counter);
+	printf("%-32s %d\n", ptr->lexeme, ptr->counter);
+}
+
+void sortSym(symtab* symHead, symtab* symPtr){
+	symtab* symCur = symHead;
+	while(symCur->front != NULL && strcmp(symPtr->lexeme, symCur->front->lexeme) > 0){
+		symCur = symCur->front;
+	}
+	symtab* symInsertion = (symtab*)malloc(sizeof(symtab));
+	// copy the info
+	strcpy(symInsertion->lexeme, symPtr->lexeme);
+	symInsertion->line = symPtr->line;
+	symInsertion->counter = symPtr->counter;
+	// reconstruct the linked list
+	// we may ignore the parameter "back" here
+	symInsertion->front = symCur->front;
+	symCur->front = symInsertion;
 }
 
 void printSymTab()
 {
     int i;
     printf("----- Symbol Table ---------\n");
+    symtab* symHead = (symtab*)malloc(sizeof(symtab));
+    symHead->front = NULL;
     for (i=0; i<TABLE_SIZE; i++)
     {
         symtab* symptr;
-	symptr = hash_table[i];
-	while (symptr != NULL)
-	{
-        printf("====>  index = %d \n", i);
-	    printSym(symptr);
-	    symptr=symptr->front;
-	}
+		symptr = hash_table[i];
+		while (symptr != NULL)
+		{
+			sortSym(symHead, symptr);
+	    	symptr=symptr->front;
+		}
+    }
+    while(symHead->front != NULL){
+    	printSym(symHead->front);
+    	symHead = symHead->front;
     }
 }
