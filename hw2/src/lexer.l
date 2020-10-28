@@ -60,8 +60,8 @@ reserved_void     "void"
 reserved_while    "while"
 ID	 {letter}({letter}|{digit}|"_")*
 WS	 [ \t]+
-Int_constant {digit}+
-Float_number {digit}+\.{digit}*|{digit}*\.{digit}+
+Int_constant [+-]?{digit}+
+Float_number [+-]?({digit}+\.{digit}*|{digit}*\.{digit}+)
 Float_constant ({Float_number}|{Int_constant})([Ee][+-]?{Int_constant})?
 String_constant \"("\n"|\\\"|[^"])*\"
 left_comment  "/*"

@@ -1,20 +1,7 @@
+#include "stdio.h"
 int main()
 {
 /* 1: this is * just a / sample */
-int n;
-int abc, def, main_1;
-int a1;
-float b1, z_123_x_45;
-float b12;
-b12 = 3.255e4;
-b12 = 3e4;
-write("Enter a number");
-
-/* 2: this is a 3-line
- 	comment
-*/
-n = read();
-abc = n + 1;
-def = abc * abc;
-write(def); /* 3: this is /* the end ***/
+int n = +1;
+printf("%d\n", n);
 }
