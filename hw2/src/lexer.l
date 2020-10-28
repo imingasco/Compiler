@@ -61,7 +61,7 @@ reserved_while    "while"
 ID	 {letter}({letter}|{digit}|"_")*
 WS	 [ \t]+
 Int_constant {digit}+
-Float_constant ({digit}+\.{digit}*|{digit}*\.{digit}+)
+Float_constant ({digit}+\.{digit}*|{digit}*\.{digit}+)(("e"{Int_constant})?)
 String_constant \"("\n"|\\\"|[^"])*\"
 left_comment  "/*"
 right_comment \*+"/"
