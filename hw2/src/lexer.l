@@ -63,7 +63,7 @@ WS	 [ \t]+
 Int_constant [+-]?{digit}+
 Float_number [+-]?({digit}+\.{digit}*|{digit}*\.{digit}+)
 Float_constant ({Float_number}|{Int_constant})([Ee]{Int_constant})?
-String_constant \"("\n"|\\\"|[^"])*\"
+String_constant \"("\n"|\\\"|[^\"])*\"
 left_comment  "/*"
 right_comment \*+"/"
 comment     {left_comment}([^*]|(\*)+[^/*])*({right_comment})
@@ -120,7 +120,7 @@ error    .
 		}
 {Int_constant}      /* return INT_CONST; */
 {Float_constant}    {ECHO; printf("\n");} /* return FLOAT_CONST; */
-{String_constant}   /* return STR_CONST; */ {/*printf("read %s at %d\n", yytext, linenumber);*/}
+{String_constant}   {ECHO; printf("\n");}
 {OP_add}        /* return OP_ADD; */
 {OP_minus}      /* return OP_MINUS; */
 {OP_div}        /* return OP_DIV; */
