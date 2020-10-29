@@ -62,7 +62,7 @@ ID	 {letter}({letter}|{digit}|"_")*
 WS	 [ \t]+
 Int_constant [+-]?{digit}+
 Float_number [+-]?({digit}+\.{digit}*|{digit}*\.{digit}+)
-Float_constant ({Float_number}|{Int_constant})([Ee][+-]?{Int_constant})?
+Float_constant ({Float_number}|{Int_constant})([Ee]{Int_constant})?
 String_constant \"("\n"|\\\"|[^"])*\"
 left_comment  "/*"
 right_comment \*+"/"
@@ -119,7 +119,7 @@ error    .
 			     ptr->counter++;
 		}
 {Int_constant}      /* return INT_CONST; */
-{Float_constant}    printf("read %s at %d\n", yytext, linenumber); /* return FLOAT_CONST; */
+{Float_constant}    {ECHO; printf("\n");} /* return FLOAT_CONST; */
 {String_constant}   /* return STR_CONST; */ {/*printf("read %s at %d\n", yytext, linenumber);*/}
 {OP_add}        /* return OP_ADD; */
 {OP_minus}      /* return OP_MINUS; */
@@ -147,7 +147,11 @@ error    .
 {DL_dot}        {}
 {DL_comma}      {}
 {DL_semicol}    {}
-{error}         printf("ERR \n");/* return ERROR; */
+{error}         {
+                   printf("Error: unrecongnized token %s\n", yytext);
+                   printf("Exiting...\n");
+                   exit(1);
+                }
 %%
 
 int main(int argc, char **argv)
