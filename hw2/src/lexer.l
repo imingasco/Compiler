@@ -9,15 +9,6 @@ void     insertRW();
 void     insertID();
 void 	 printSymTab();
 /* You need to define for all tokens in C--, here are some examples */
-#define RETURN      10
-#define TYPEDEF     11
-#define IF          12
-#define ELSE        13
-#define INT		    14
-#define FLOAT 		15 
-#define FOR         16
-#define VOID        17
-#define WHILE       18
 #define INT_CONST   19
 #define FLOAT_CONST 20
 #define STR_CONST   21
@@ -55,7 +46,7 @@ WS	 [ \t]+
 Int_constant [+-]?{digit}+
 Float_number [+-]?({digit}+\.{digit}*|{digit}*\.{digit}+)
 Float_constant ({Float_number}|{Int_constant})([Ee]{Int_constant})?
-String_constant \"("\n"|\\\"|[^\"])*\"
+String_constant \"([^\\"\n]|\\\"|\\[^\n])*\"
 left_comment  "/*"
 right_comment \*+"/"
 comment     {left_comment}([^*]|(\*)+[^/*])*({right_comment})
@@ -107,7 +98,7 @@ error    .
 		}
 {Int_constant}      /* return INT_CONST; */
 {Float_constant}    {/*ECHO; printf("\n");*/} /* return FLOAT_CONST; */
-{String_constant}   {/*ECHO; printf("\n");*/}
+{String_constant}   {ECHO; printf(" ok\n");}
 {OP_add}        /* return OP_ADD; */
 {OP_minus}      /* return OP_MINUS; */
 {OP_div}        /* return OP_DIV; */
