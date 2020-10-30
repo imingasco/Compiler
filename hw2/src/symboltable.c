@@ -38,6 +38,31 @@ symtab * lookup(char *name){
 	return NULL;
 }
 
+void insertRW(char *name){
+	int hash_key;
+	symtab* ptr;
+	symtab* symptr=(symtab*)malloc(sizeof(symtab));	
+	
+	hash_key=HASH(name);
+	ptr=hash_table[hash_key];
+	
+	if(ptr==NULL){
+		/*first entry for this hash_key*/
+		hash_table[hash_key]=symptr;
+		symptr->front=NULL;
+		symptr->back=symptr;
+	}
+	else{
+		symptr->front=ptr;
+		ptr->back=symptr;
+		symptr->back=symptr;
+		hash_table[hash_key]=symptr;	
+	}
+	strcpy(symptr->lexeme,name);
+	symptr->line=linenumber;
+	symptr->counter=1;
+    symptr->reserved=1;
+}
 
 void insertID(char *name){
 	int hash_key;
@@ -63,6 +88,7 @@ void insertID(char *name){
 	strcpy(symptr->lexeme,name);
 	symptr->line=linenumber;
 	symptr->counter=1;
+    symptr->reserved=0;
 }
 
 void printSym(symtab* ptr) 
@@ -98,7 +124,8 @@ void printSymTab()
 		symptr = hash_table[i];
 		while (symptr != NULL)
 		{
-			sortSym(symHead, symptr);
+            if(!symptr->reserved)
+			    sortSym(symHead, symptr);
 	    	symptr=symptr->front;
 		}
     }

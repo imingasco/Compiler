@@ -4,6 +4,7 @@ struct symtab{
 	struct symtab *back;
 	int line;
 	int counter;
+    short reserved;
 };
 
 typedef struct symtab symtab;

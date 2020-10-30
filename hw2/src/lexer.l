@@ -5,6 +5,7 @@
 int linenumber;
 symtab * lookup();
 symtab * ptr;
+void     insertRW();
 void     insertID();
 void 	 printSymTab();
 /* You need to define for all tokens in C--, here are some examples */
@@ -49,15 +50,6 @@ void 	 printSymTab();
 
 letter   [A-Za-z]
 digit    [0-9]
-reserved_return   "return"
-reserved_typedef  "typedef"
-reserved_if       "if"
-reserved_else     "else"
-reserved_int      "int"
-reserved_float    "float"
-reserved_for      "for"
-reserved_void     "void"
-reserved_while    "while"
 ID	 {letter}({letter}|{digit}|"_")*
 WS	 [ \t]+
 Int_constant [+-]?{digit}+
@@ -99,28 +91,23 @@ error    .
 
 %%
 
-{WS}                   {}
-{reserved_typedef}  /* return TYPEDEF; */
-{reserved_if}       /* return IF; */
-{reserved_else}     /* return ELSE; */ 
-{reserved_int}      /* return INT; */
-{reserved_float}    /* return FLOAT; */
-{reserved_for}      /* return FOR; */
-{reserved_void}     /* return VOID; */
-{reserved_while}    /* return WHILE; */
-{comment}   {
-                printf("%s\n", yytext);
-            }
+{WS}        {}
+{comment}   { printf("%s\n", yytext); }
 {ID}    { 
+            //printf("read %s\n", yytext);
 			ptr = lookup(yytext);
-			if (ptr == NULL)
-			     insertID(yytext);	
-			else 
-			     ptr->counter++;
+			if (ptr == NULL){
+                //printf("new ID\n");
+			    insertID(yytext);	
+            }
+			else {
+                //printf("appeared before\n");
+			    ptr->counter++;
+            }
 		}
 {Int_constant}      /* return INT_CONST; */
-{Float_constant}    {ECHO; printf("\n");} /* return FLOAT_CONST; */
-{String_constant}   {ECHO; printf("\n");}
+{Float_constant}    {/*ECHO; printf("\n");*/} /* return FLOAT_CONST; */
+{String_constant}   {/*ECHO; printf("\n");*/}
 {OP_add}        /* return OP_ADD; */
 {OP_minus}      /* return OP_MINUS; */
 {OP_div}        /* return OP_DIV; */
@@ -148,7 +135,7 @@ error    .
 {DL_comma}      {}
 {DL_semicol}    {}
 {error}         {
-                   printf("Error: unrecongnized token %s\n", yytext);
+                   printf("Error: unrecongnized token %s at line %d\n", yytext, linenumber);
                    printf("Exiting...\n");
                    exit(1);
                 }
@@ -156,12 +143,22 @@ error    .
 
 int main(int argc, char **argv)
 {
- argc--; ++argv;
-   if (argc > 0)
-      yyin = fopen(argv[0], "r");
-   else
-      yyin = stdin;
-   yylex();
-   printSymTab();
+    argc--; ++argv;
+    // Insert reserved words to the symbol table
+    insertRW("return");
+    insertRW("typedef");
+    insertRW("if");
+    insertRW("else");
+    insertRW("int");
+    insertRW("float");
+    insertRW("for");
+    insertRW("while");
+    insertRW("void");
+    if (argc > 0)
+        yyin = fopen(argv[0], "r");
+    else
+        yyin = stdin;
+    yylex();
+    printSymTab();
 }
 
