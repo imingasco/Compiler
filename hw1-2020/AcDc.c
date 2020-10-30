@@ -27,7 +27,7 @@ int main( int argc, char *argv[] )
             program = parser(source);
             fclose(source);
             symtab = build(program);
-            //TraverseTable(&symtab, debugger);
+            // TraverseTable(&symtab, debugger);
             check(&program, &symtab);
             ConstantFold(&program);
             gencode(program, target, &symtab);
@@ -305,7 +305,7 @@ Expression *parseExpression( FILE *source, Expression *lvalue )
                 expr->rightOperand = parseValue(source);
                 return expr;
             }
-            else if(lvalue->rightOperand == NULL){
+            else if(lvalue->rightOperand == NULL || lvalue->v.type == MulNode || lvalue->v.type == DivNode){
                 expr->leftOperand = lvalue;
                 expr->rightOperand = parseValue(source);
                 return parseExpression(source, expr);
@@ -325,7 +325,7 @@ Expression *parseExpression( FILE *source, Expression *lvalue )
                 expr->rightOperand = parseValue(source);
                 return expr;
             }
-            else if(lvalue->rightOperand == NULL){
+            else if(lvalue->rightOperand == NULL || lvalue->v.type == MulNode || lvalue->v.type == DivNode){
                 expr->leftOperand = lvalue;
                 expr->rightOperand = parseValue(source);
                 return parseExpression(source, expr);
@@ -507,10 +507,14 @@ void TraverseTable( SymbolTable *table, char *current ){
     int i;
     char buf[1024];
     int len = strlen(current);
-    printf("now len = %d\n", len);
     strncpy(buf, current, len);
-    if(table->end)
+    if(table->end){
         printf("in buf: %s\n", buf);
+        if(table->type == Float)
+            printf("float\n");
+        else if(table->type == Int)
+            printf("int\n");
+    }
     for(i = 0; i < 26; i++){
         if(table->next[i]){
             buf[len] = (char)('a' + i);
@@ -663,6 +667,9 @@ void checkexpression( Expression * expr, SymbolTable * table )
 
         checkexpression(left, table);
         checkexpression(right, table);
+
+        if(expr->v.type == DivNode && ((expr->rightOperand->v.type == IntConst && expr->rightOperand->v.val.ivalue == 0) || (expr->rightOperand->v.type == FloatConst && expr->rightOperand->v.val.fvalue == 0.0)))
+            printf("Warning: division by zero\n");
 
         DataType type = generalize(left, right);
         convertType(left, type);//left->type = type;//converto
