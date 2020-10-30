@@ -855,10 +855,16 @@ void fprint_expr( FILE *target, Expression *expr, SymbolTable *symtab )
                 fprintf(target,"l%c\n",getRegister((expr->v).val.id, symtab));
                 break;
             case IntConst:
-                fprintf(target,"%d\n",(expr->v).val.ivalue);
+                if((expr->v).val.ivalue < 0)
+                    fprintf(target,"_%d\n", -(expr->v).val.ivalue);
+                else
+                    fprintf(target,"%d\n",(expr->v).val.ivalue);
                 break;
             case FloatConst:
-                fprintf(target,"%f\n", (expr->v).val.fvalue);
+                if((expr->v).val.fvalue < 0)
+                    fprintf(target, "_%f\n", -(expr->v).val.fvalue);
+                else
+                    fprintf(target,"%f\n", (expr->v).val.fvalue);
                 break;
             default:
                 fprintf(target,"Error In fprint_left_expr. (expr->v).type=%d\n",(expr->v).type);
