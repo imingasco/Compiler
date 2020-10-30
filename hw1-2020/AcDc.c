@@ -4,7 +4,7 @@
 #include <string.h>
 #include "header.h"
 
-
+int linenumber = 1;
 int main( int argc, char *argv[] )
 {
     FILE *source, *target;
@@ -24,13 +24,8 @@ int main( int argc, char *argv[] )
             exit(2);
         }
         else{
-            program = parser(source);
+            program = parser(source, target);
             fclose(source);
-            symtab = build(program);
-            // TraverseTable(&symtab, debugger);
-            check(&program, &symtab);
-            ConstantFold(&program);
-            gencode(program, target, &symtab);
         }
     }
     else{
@@ -112,7 +107,13 @@ Token scanner( FILE *source )
         c = fgetc(source);
         //printf("[scanner] first read %c\n", c);
 
-        while( isspace(c) ) c = fgetc(source);
+        while( isspace(c) ){
+            if(c == '\n'){
+                linenumber++;
+                //printf("line %d\n", linenumber);
+            }
+            c = fgetc(source);
+        }
 
         if( isdigit(c) )
             return getNumericToken(source, c);
@@ -362,11 +363,10 @@ Expression *parseExpression( FILE *source, Expression *lvalue )
     }
 }
 
-Statement parseStatement( FILE *source, Token token )
+Statement *parseStatement( FILE *source, Token token )
 {
     Token next_token;
     Expression *value, *expr;
-    printf("token.tok = %s\n", token.tok);
     switch(token.type){
         case Alphabet:
             next_token = scanner(source);
@@ -401,25 +401,27 @@ Statement parseStatement( FILE *source, Token token )
     }
 }
 
-Statements *parseStatements( FILE * source )
+void parseStatements( FILE * source, SymbolTable *symtab, FILE *target )
 {
-
-    Token token = scanner(source);
-    //printf("[parseStatements] token.tok = %s\n", token.tok);
-    Statement stmt;
-    Statements *stmts;
-
-    switch(token.type){
-        case Alphabet:
-        case PrintOp:
-            stmt = parseStatement(source, token);
-            stmts = parseStatements(source);
-            return makeStatementTree(stmt , stmts);
-        case EOFsymbol:
-            return NULL;
-        default:
-            printf("Syntax Error: Expect statements %s\n", token.tok);
-            exit(1);
+    while(1){
+        Token token = scanner(source);
+        //printf("[parseStatements] token.tok = %s\n", token.tok);
+        Statement *stmt;
+        switch(token.type){
+            case Alphabet:
+            case PrintOp:
+                stmt = parseStatement(source, token);
+                checkstmt(stmt, symtab);
+                stmt->stmt.assign.expr = ConstantFold( *stmt );
+                gencode(*stmt, target, symtab);
+                free(stmt);
+                break;
+            case EOFsymbol:
+                return;
+            default:
+                printf("Syntax Error: Expect statements %s\n", token.tok);
+                exit(1);
+        }
     }
 }
 
@@ -456,45 +458,38 @@ Declarations *makeDeclarationTree( Declaration decl, Declarations *decls )
 }
 
 
-Statement makeAssignmentNode( char *id, Expression *expr)
+Statement *makeAssignmentNode( char *id, Expression *expr)
 {
-    Statement stmt;
+    Statement *stmt = (Statement *)malloc(sizeof(Statement));
     AssignmentStatement assign;
 
-    stmt.type = Assignment;
+    stmt->type = Assignment;
     //printf("read id = %s\n", id);
     strcpy(assign.id, id);
     assign.expr = expr;
-    stmt.stmt.assign = assign;
+    stmt->stmt.assign = assign;
 
     return stmt;
 }
 
-Statement makePrintNode( char *id )
+Statement *makePrintNode( char *id )
 {
-    Statement stmt;
-    stmt.type = Print;
-    strcpy(stmt.stmt.variable, id);
+    Statement *stmt = (Statement *)malloc(sizeof(Statement));
+    stmt->type = Print;
+    strcpy(stmt->stmt.variable, id);
 
     return stmt;
-}
-
-Statements *makeStatementTree( Statement stmt, Statements *stmts )
-{
-    Statements *new_tree = (Statements *)malloc( sizeof(Statements) );
-    new_tree->first = stmt;
-    new_tree->rest = stmts;
-
-    return new_tree;
 }
 
 /* parser */
-Program parser( FILE *source )
+Program parser( FILE *source, FILE *target )
 {
     Program program;
-
+    SymbolTable symtab;
     program.declarations = parseDeclarations(source);
-    program.statements = parseStatements(source);
+    symtab = build(program);
+    //TraverseTable(&symtab, "");
+    parseStatements(source, &symtab, target);
 
     return program;
 }
@@ -522,7 +517,6 @@ void TraverseTable( SymbolTable *table, char *current ){
             TraverseTable(table->next[i], buf);
         }    
     }
-    
 }
 void InitializeTable( SymbolTable *table )
 {
@@ -572,7 +566,13 @@ SymbolTable build( Program program )
         add_table(&table, current.name, current.type, index++);
         decls = decls->rest;
     }
-
+    Declarations *cur = program.declarations;
+    Declarations *next;
+    while(cur != NULL){
+        next = cur->rest;
+        free(cur);
+        cur = next;
+    }
     return table;
 }
 
@@ -624,11 +624,11 @@ DataType lookup_table( SymbolTable *table, char *c )
     int len = strlen(c);
     SymbolTable *current = table;
     for( i = 0; i < len; i++ ){
-        if(current == NULL){
+        id = (int)(c[i] - 'a');
+        if(current->next[id] == NULL){
             printf("Error: variable %s is not declared\n", c);
             exit(1);
         }
-        id = (int)(c[i] - 'a');
         current = current->next[id];
     }
     if(!current->end){
@@ -698,15 +698,6 @@ void checkstmt( Statement *stmt, SymbolTable * table )
     else printf("error : statement error\n");//error
 }
 
-void check( Program *program, SymbolTable * table )
-{
-    Statements *stmts = program->statements;
-    while(stmts != NULL){
-        checkstmt(&stmts->first,table);
-        stmts = stmts->rest;
-    }
-}
-
 /***********************************************************************
  Constant Folding
  ************************************************************************/
@@ -718,6 +709,7 @@ Expression *ReplaceConvertNode( Expression *expr ){
     newNode->v = v;
     newNode->leftOperand = newNode->rightOperand = NULL;
     newNode->type = Float;
+    free(expr);
     return newNode; 
 }
 
@@ -791,27 +783,25 @@ Expression *TraverseExpressionTree( Expression *expr ){
         if(left->v.type == FloatConst && right->v.type == FloatConst){
             float lvalue = left->v.val.fvalue;
             float rvalue = right->v.val.fvalue;
-            return FoldFloat( expr, lvalue, rvalue );
+            Expression *newNode = FoldFloat( expr, lvalue, rvalue );
+            free(left);
+            free(right);
+            return newNode;
         }       
         else if(left->v.type == IntConst && right->v.type == IntConst){
             int lvalue = left->v.val.ivalue;
             int rvalue = right->v.val.ivalue;
-            return FoldInt( expr, lvalue, rvalue );
+            Expression *newNode = FoldInt( expr, lvalue, rvalue );
+            free(left);
+            free(right);
+            return newNode;
         }
     }
     return expr;
 }
 
-void ConstantFold( Program *program ){
-    Statements *stmts = program->statements;
-    while(stmts != NULL){
-        Statement stmt = stmts->first;
-        if(stmt.type == Assignment){
-            stmt.stmt.assign.expr = TraverseExpressionTree( stmt.stmt.assign.expr );
-            stmts->first = stmt;
-        }
-        stmts = stmts->rest;
-    }
+Expression *ConstantFold( Statement stmt ){
+    return TraverseExpressionTree( stmt.stmt.assign.expr );
 }
 
 /***********************************************************************
@@ -884,34 +874,25 @@ void fprint_expr( FILE *target, Expression *expr, SymbolTable *symtab )
     }
 }
 
-void gencode(Program prog, FILE * target, SymbolTable *symtab)
+void gencode(Statement stmt, FILE * target, SymbolTable *symtab)
 {
-    Statements *stmts = prog.statements;
-    Statement stmt;
-    int used[26];
-
-    while(stmts != NULL){
-        stmt = stmts->first;
-        switch(stmt.type){
-            case Print:
-                fprintf(target,"l%c\n",getRegister(stmt.stmt.variable, symtab));
-                fprintf(target,"p\n");
-                break;
-            case Assignment:
-                //print_expr(stmt.stmt.assign.expr);
-                fprint_expr(target, stmt.stmt.assign.expr, symtab);
-                /*
-                   if(stmt.stmt.assign.type == Int){
-                   fprintf(target,"0 k\n");
-                   }
-                   else if(stmt.stmt.assign.type == Float){
-                   fprintf(target,"5 k\n");
-                   }*/
-                fprintf(target,"s%c\n",getRegister(stmt.stmt.assign.id, symtab));
+    switch(stmt.type){
+        case Print:
+            fprintf(target,"l%c\n",getRegister(stmt.stmt.variable, symtab));
+            fprintf(target,"p\n");
+            break;
+        case Assignment:
+            //print_expr(stmt.stmt.assign.expr);
+            fprint_expr(target, stmt.stmt.assign.expr, symtab);
+            fprintf(target,"s%c\n",getRegister(stmt.stmt.assign.id, symtab));
+            if(stmt.stmt.assign.type == Int){
                 fprintf(target,"0 k\n");
-                break;
-        }
-        stmts=stmts->rest;
+            }
+            else if(stmt.stmt.assign.type == Float){
+                fprintf(target,"5 k\n");
+            }
+            //fprintf(target,"0 k\n");
+            break;
     }
 
 }
@@ -921,6 +902,7 @@ void gencode(Program prog, FILE * target, SymbolTable *symtab)
   For our debug,
   you can omit them.
  ****************************************/
+/*
 void print_expr(Expression *expr)
 {
     if(expr == NULL)
@@ -997,3 +979,4 @@ void test_parser( FILE *source )
     }
 
 }
+*/
