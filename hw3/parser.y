@@ -260,7 +260,9 @@ expr_null	:expr
 block           : decl_list stmt_list 
                     {
                         $$ = Allocate(BLOCK_NODE);
-                        makeFamily($$, 2, $1, $2);
+                        AST_NODE *declList = makeChild(Allocate(VARIABLE_DECL_LIST_NODE), $1);
+                        AST_NODE *stmtList = makeChild(Allocate(STMT_LIST_NODE), $2);
+                        makeFamily($$, 2, declList, stmtList);
                     }
                 | stmt_list  
                     {
@@ -350,11 +352,12 @@ id_list		: ID
 		;
 dim_decl	: MK_LB cexpr MK_RB 
                 {
-                    /*TODO*/
+                    $$ = $2;
                 } 
-            /*TODO: Try if you can define a recursive production rule
-            | .......
-            */
+            | dim_decl MK_LB cexpr MK_RB
+                {
+                    $$ = makeSibling($1, $3);
+                }
             ;
 cexpr		: cexpr OP_PLUS mcexpr 
                 {
@@ -363,7 +366,8 @@ cexpr		: cexpr OP_PLUS mcexpr
                 } /* This is for array declarations */ 
             | cexpr OP_MINUS mcexpr
                 {
-                    /*TODO*/
+                    $$ = makeExprNode(BINARY_OPERATION, BINARY_OP_SUB);
+                    makeFamily($$, 2, $1, $3);
                 } 
             | mcexpr 
                 {
@@ -372,21 +376,24 @@ cexpr		: cexpr OP_PLUS mcexpr
             ;  
 mcexpr		: mcexpr OP_TIMES cfactor 
                 {
-                    /*TODO*/
+                    $$ = makeExprNode(BINARY_OPERATION, BINARY_OP_MUL);
+                    makeFamily($$, $1, $3);
                 }
             | mcexpr OP_DIVIDE cfactor 
                 {
-                    /*TODO*/
+                    $$ = makeExprNode(BINARY_OPERATION, BINARY_OP_DIV);
+                    makeFamily($$, $1, $3);
                 }
             | cfactor 
                 {
-                    /*TODO*/
+                    $$ = $1;
                 }
             ;
         
 cfactor:	CONST 
                 {
-                    /*TODO*/
+                    $$ = Allocate(CONST_VALUE_NODE);
+                    $$->semantic_value.const1 = $1;
                 }
             | MK_LPAREN cexpr MK_RPAREN 
                 {
