@@ -349,7 +349,7 @@ id_list		: ID
                 {
                     $$ = makeChild(makeIDNode($1, ARRAY_ID), $2);
                 }
-		;
+		    ;
 dim_decl	: MK_LB cexpr MK_RB 
                 {
                     $$ = $2;
@@ -442,6 +442,10 @@ stmt		: MK_LBRACE block MK_RBRACE
                     /*TODO*/
                 }
             /*TODO: | While Statement */
+            | WHILE MK_LPAREN test MK_RPAREN stmt
+                {
+                    
+                }
             | FOR MK_LPAREN assign_expr_list MK_SEMICOLON relop_expr_list MK_SEMICOLON assign_expr_list MK_RPAREN stmt
                 {
                     /*TODO*/
@@ -451,8 +455,32 @@ stmt		: MK_LBRACE block MK_RBRACE
                     /*TODO*/
                 }
             /*TODO: | If Statement */
+            | IF MK_LPAREN test MK_RPAREN stmt
+                {
+
+                }
             /*TODO: | If then else */
+            | IF MK_LPAREN test MK_RPAREN stmt ELSE stmt
+                {
+
+                }
             /*TODO: | function call */
+            | ID MK_LPAREN relop_expr_list MK_RPAREN 
+                {
+                    /*TODO*/
+                }
+            | OP_NOT ID MK_LPAREN relop_expr_list MK_RPAREN 
+                {
+                    /*TODO*/
+                }
+            | var_ref ID MK_LPAREN relop_expr_list MK_RPAREN 
+                {
+                    /*TODO*/
+                }
+            | var_ref OP_NOT ID MK_LPAREN relop_expr_list MK_RPAREN 
+                {
+                    /*TODO*/
+                }
             | MK_SEMICOLON 
                 {
                     /*TODO*/
