@@ -372,6 +372,7 @@ cexpr		: cexpr OP_PLUS mcexpr
             | mcexpr 
                 {
                     /*TODO*/
+                    $$ = $1;
                 }
             ;  
 mcexpr		: mcexpr OP_TIMES cfactor 
@@ -398,6 +399,7 @@ cfactor:	CONST
             | MK_LPAREN cexpr MK_RPAREN 
                 {
                     /*TODO*/
+                    $$ = $2;
                 }
             ;
 
@@ -422,16 +424,20 @@ init_id		: ID
             | ID OP_ASSIGN relop_expr 
                 {
                     /*TODO*/
+                    $$ = makeExprNode(BINARY_OPERATION, BINARY_OP_EQ);
+                    makeFamily($$, 2, makeIDNode($1, WITH_INIT_ID), $3);
                 }
             ;
 
 stmt_list	: stmt_list stmt 
                 {
                     /*TODO*/
+                    $$ = makeSibling($1, $2);
                 }
             | stmt
                 {
                     /*TODO*/
+                    $$ = $1;
                 }
             ;
 
@@ -440,15 +446,19 @@ stmt_list	: stmt_list stmt
 stmt		: MK_LBRACE block MK_RBRACE 
                 {
                     /*TODO*/
+                    $$ = $2;
                 }
             /*TODO: | While Statement */
             | WHILE MK_LPAREN test MK_RPAREN stmt
                 {
-                    
+                    $$ = makeStmtNode(WHILE_STMT);
+                    makeFamily($$, 2, $3, $5);
                 }
             | FOR MK_LPAREN assign_expr_list MK_SEMICOLON relop_expr_list MK_SEMICOLON assign_expr_list MK_RPAREN stmt
                 {
                     /*TODO*/
+                    $$ = makeStmtNode(FOR_STMT);
+                    makeFamily($$, 4, $3, $5, $7, $9);
                 }
             | var_ref OP_ASSIGN relop_expr MK_SEMICOLON
                 {
