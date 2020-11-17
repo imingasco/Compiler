@@ -378,12 +378,12 @@ cexpr		: cexpr OP_PLUS mcexpr
 mcexpr		: mcexpr OP_TIMES cfactor 
                 {
                     $$ = makeExprNode(BINARY_OPERATION, BINARY_OP_MUL);
-                    makeFamily($$, $1, $3);
+                    makeFamily($$, 2, $1, $3);
                 }
             | mcexpr OP_DIVIDE cfactor 
                 {
                     $$ = makeExprNode(BINARY_OPERATION, BINARY_OP_DIV);
-                    makeFamily($$, $1, $3);
+                    makeFamily($$, 2, $1, $3);
                 }
             | cfactor 
                 {
@@ -493,7 +493,7 @@ stmt		: MK_LBRACE block MK_RBRACE
                 {
                     /*TODO*/
                     $$ = makeStmtNode(RETURN_STMT);
-                    null_node = Allocate(NUL_NODE);
+                    AST_NODE *null_node = Allocate(NUL_NODE);
                     makeChild($$, null_node);
                 }
             | RETURN relop_expr MK_SEMICOLON
@@ -538,7 +538,7 @@ assign_expr     : ID OP_ASSIGN relop_expr
                     {
                         /*TODO*/
                         $$ = makeStmtNode(ASSIGN_STMT);
-                        makeFamily($$, 2, makeIDNode(NORMAL_ID, $1), $3);
+                        makeFamily($$, 2, makeIDNode($1, NORMAL_ID), $3);
                     }
                 | relop_expr
                     {
@@ -619,7 +619,7 @@ rel_op		: OP_EQ
 relop_expr_list	: nonempty_relop_expr_list 
                     {
                         /*TODO*/
-                        $$ = Allocate(NONEMPTY_RELOP_EXPR_LIST);
+                        $$ = Allocate(NONEMPTY_RELOP_EXPR_LIST_NODE);
                         makeChild($$, $1);
                     }
                 | 
@@ -707,7 +707,7 @@ factor		: MK_LPAREN relop_expr MK_RPAREN
             | OP_NOT CONST
                 {
                     /*TODO*/
-                    const_node = Allocate(CONST_VALUE_NODE);
+                    AST_NODE *const_node = Allocate(CONST_VALUE_NODE);
                     const_node->semantic_value.const1 = $2;
                     $$ = makeExprNode(UNARY_OPERATION, UNARY_OP_NEGATIVE);
                     makeChild($$, const_node);
@@ -721,9 +721,9 @@ factor		: MK_LPAREN relop_expr MK_RPAREN
                 {
                     /*TODO*/
                     $$ = makeExprNode(UNARY_OPERATION, UNARY_OP_NEGATIVE);
-                    funct_node = makeStmtNode(FUNCTION_CALL_STMT);
+                    AST_NODE *funct_node = makeStmtNode(FUNCTION_CALL_STMT);
                     makeFamily(funct_node, 2, makeIDNode($2, NORMAL_ID), $4);
-                    makeChild($$, $2);
+                    makeChild($$, funct_node);
                 }
             | var_ref 
                 {
@@ -735,7 +735,7 @@ factor		: MK_LPAREN relop_expr MK_RPAREN
                 {
                     /*TODO*/
                     $$ = makeExprNode(UNARY_OPERATION, UNARY_OP_NEGATIVE);
-                    makeChild($$, $1);
+                    makeChild($$, $2);
                 }
             ;
 
