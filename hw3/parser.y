@@ -792,7 +792,10 @@ char *argv[];
      yyin = fopen(argv[1],"r");
      yyparse();
 	 printf("%s\n", "Parsing completed. No errors found.");
-	 printGV(prog, argv[2]);
+     if(argc > 2)
+	   printGV(prog, argv[2]);
+     else
+       printGV(prog, NULL);
   } /* main */
 
 
