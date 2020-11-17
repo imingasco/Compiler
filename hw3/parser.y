@@ -307,7 +307,7 @@ type_decl 	: TYPEDEF type id_list MK_SEMICOLON
             | TYPEDEF VOID id_list MK_SEMICOLON 
                 {
                     $$ = makeDeclNode(TYPE_DECL);
-                    makeFamily($$, 2, VOID, $3);
+                    makeFamily($$, 2, makeIDNode("void", NORMAL_ID), $3);
                 }
             ;
 
