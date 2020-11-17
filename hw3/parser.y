@@ -704,7 +704,7 @@ factor		: MK_LPAREN relop_expr MK_RPAREN
                     $$->semantic_value.const1 = $1;
                 }
             /*TODO: | -<constant> e.g. -4 */
-            | OP_NOT CONST
+            | OP_MINUS CONST
                 {
                     /*TODO*/
                     const_node = Allocate(CONST_VALUE_NODE);
@@ -717,7 +717,7 @@ factor		: MK_LPAREN relop_expr MK_RPAREN
                     /*TODO*/
                 }
             /*TODO: | -<function call> e.g. -f(4) */
-            | OP_NOT ID MK_LPAREN relop_expr_list MK_RPAREN
+            | OP_MINUS ID MK_LPAREN relop_expr_list MK_RPAREN
                 {
                     /*TODO*/
                     $$ = makeExprNode(UNARY_OPERATION, UNARY_OP_NEGATIVE);
