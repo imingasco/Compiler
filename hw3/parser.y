@@ -549,7 +549,7 @@ assign_expr     : ID OP_ASSIGN relop_expr
                         /*TODO*/
                         $$ = $1;
                     }
-		;
+		        ;
 
 relop_expr	: relop_term 
                 {
@@ -779,7 +779,7 @@ dim_list	: dim_list MK_LB expr MK_RB
                     /*TODO*/
                     $$ = $2;
                 }
-		;
+		    ;
 
 
 %%
@@ -792,7 +792,7 @@ char *argv[];
      yyin = fopen(argv[1],"r");
      yyparse();
 	 printf("%s\n", "Parsing completed. No errors found.");
-	 printGV(prog, NULL);
+	 printGV(prog, argv[2]);
   } /* main */
 
 
