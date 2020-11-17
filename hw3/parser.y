@@ -315,12 +315,12 @@ var_decl	: type init_id_list MK_SEMICOLON
                 {
                     $$ = makeDeclNode(VARIABLE_DECL);
                     makeFamily($$, 2, $1, $2);
-                }
+                }/*
             | ID init_id_list MK_SEMICOLON
                 {
                     $$ = makeDeclNode(VARIABLE_DECL);
                     makeFamily($$, 2, makeIDNode($1, NORMAL_ID), $2);
-                }
+                }*/
             ;
 
 type		: INT 
@@ -330,6 +330,10 @@ type		: INT
             | FLOAT 
                 {
                     $$ = makeIDNode("float", NORMAL_ID);
+                }
+            | ID
+                {
+                    $$ = makeIDNode($1, NORMAL_ID);
                 }
             ;
 
