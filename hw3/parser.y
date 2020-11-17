@@ -703,11 +703,7 @@ factor		: MK_LPAREN relop_expr MK_RPAREN
                     $$->semantic_value.const1 = $1;
                 }
             /*TODO: | -<constant> e.g. -4 */
-<<<<<<< HEAD
-            | OP_MINUS CONST
-=======
             | una_op CONST
->>>>>>> b584c5a47996e0008d00c708b627c0d95c4af63a
                 {
                     /*TODO*/
                     AST_NODE *const_node = Allocate(CONST_VALUE_NODE);
@@ -721,11 +717,7 @@ factor		: MK_LPAREN relop_expr MK_RPAREN
                     makeFamily($$, 2, makeIDNode($1, NORMAL_ID), $3);
                 }
             /*TODO: | -<function call> e.g. -f(4) */
-<<<<<<< HEAD
-            | OP_MINUS ID MK_LPAREN relop_expr_list MK_RPAREN
-=======
             | una_op ID MK_LPAREN relop_expr_list MK_RPAREN
->>>>>>> b584c5a47996e0008d00c708b627c0d95c4af63a
                 {
                     /*TODO*/
                     AST_NODE *funct_node = makeStmtNode(FUNCTION_CALL_STMT);
