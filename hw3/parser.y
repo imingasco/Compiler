@@ -538,7 +538,7 @@ test		: assign_expr
                 }
             ;
 
-assign_expr     : ID OP_ASSIGN relop_expr 
+assign_expr     : var_ref OP_ASSIGN relop_expr 
                     {
                         /*TODO*/
                         $$ = makeStmtNode(ASSIGN_STMT);
@@ -764,7 +764,7 @@ var_ref		: ID
                 {
                     /*TODO*/
                     $$ = makeIDNode($1, ARRAY_ID);
-                    makeSibling($$, $2);
+                    makeChild($$, $2);
                 }
             ;
 
