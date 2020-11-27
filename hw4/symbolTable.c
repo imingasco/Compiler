@@ -29,16 +29,38 @@ SymbolTableEntry* newSymbolTableEntry(int nestingLevel)
     return symbolTableEntry;
 }
 
-void removeFromHashTrain(int hashIndex, SymbolTableEntry* entry)
+void removeFromHashChain(int hashIndex, SymbolTableEntry* entry)
 {
+    if(entry == NULL) return;
+    if(entry->prevInHashChain != NULL){
+        entry->prevInHashChain->nextInHashChain = entry->nextInHashChain;
+    }
+    if(entry->nextInHashChain != NULL){
+        entry->nextInHashChain->prevInHashChain = entry->prevInHashChain;
+    }
+    if(entry == symbolTable.hashTable[hashIndex]){
+        symbolTable.hashTable[hashIndex] = entry->nextInHashChain;
+    }
 }
 
-void enterIntoHashTrain(int hashIndex, SymbolTableEntry* entry)
+void enterIntoHashChain(int hashIndex, SymbolTableEntry* entry)
 {
+    entry->nextInHashChain = symbolTable.hashTable[hashIndex];
+    symbolTable.hashTable[hashIndex]->prevInHashChain = entry;
+    symbolTable.hashTable[hashIndex] = entry;
 }
 
 void initializeSymbolTable()
 {
+    for(int i = 0; i < HASH_TABLE_SIZE; i++){
+        symbolTable.hashTable[i] = NULL;
+    }
+    symbolTable.scopeDisplay = malloc(sizeof(SymbolTableEntry*) * MAX_SCOPE_NUM);
+    for(int i = 0; i < MAX_SCOPE_NUM; i++){
+        symbolTable.scopeDisplay[i] = NULL;
+    }
+    symbolTable.currentLevel = 0;
+    symbolTable.scopeDisplayElementCount = 0;
 }
 
 void symbolTableEnd()
@@ -51,6 +73,18 @@ SymbolTableEntry* retrieveSymbol(char* symbolName)
 
 SymbolTableEntry* enterSymbol(char* symbolName, SymbolAttribute* attribute)
 {
+    SymbolTableEntry *entry = newSymbolTableEntry(symbolTable.currentLevel);
+    strcpy(entry->name, symbolName);
+    entry->attribute = attribute;
+    // construct same level chain
+    entry->nextInSameLevel = symbolTable.scopeDisplay[symbolTable.currentLevel];
+    symbolTable.scopeDisplay[symbolTable.currentLevel] = entry;
+    // construct same name chain
+    SymbolTableEntry *retrEntry = retrieveSymbol(entry->name);
+    entry->sameNameInOuterLevel = retrEntry;
+    removeFromHashChain(HASH(entry->name), retrEntry);
+    enterIntoHashChain(HASH(entry->name), entry);
+    return entry;
 }
 
 //remove the symbol from the current scope
@@ -64,8 +98,10 @@ int declaredLocally(char* symbolName)
 
 void openScope()
 {
+    symbolTable.currentLevel++;
 }
 
 void closeScope()
 {
+    symbolTable.currentLevel--;
 }

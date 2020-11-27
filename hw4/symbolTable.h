@@ -12,6 +12,7 @@
 #define SYMBOL_TABLE_SYS_LIB_READ "read"
 #define SYMBOL_TABLE_SYS_LIB_FREAD "fread"
 #define HASH_TABLE_SIZE 256
+#define MAX_SCOPE_NUM 128
 
 
 typedef enum SymbolAttributeKind
