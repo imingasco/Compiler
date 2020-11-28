@@ -542,7 +542,7 @@ assign_expr     : var_ref OP_ASSIGN relop_expr
                     {
                         /*TODO*/
                         $$ = makeStmtNode(ASSIGN_STMT);
-                        makeFamily($$, 2, makeIDNode($1, NORMAL_ID), $3);
+                        makeFamily($$, 2, $1, $3);
                     }
                 | relop_expr
                     {
