@@ -41,10 +41,12 @@ void removeFromHashChain(int hashIndex, SymbolTableEntry* entry)
     if(entry == symbolTable.hashTable[hashIndex]){
         symbolTable.hashTable[hashIndex] = entry->nextInHashChain;
     }
+    entry->prevInHashChain = entry->nextInHashChain = NULL;
 }
 
 void enterIntoHashChain(int hashIndex, SymbolTableEntry* entry)
 {
+    if(entry == NULL) return;
     entry->nextInHashChain = symbolTable.hashTable[hashIndex];
     symbolTable.hashTable[hashIndex]->prevInHashChain = entry;
     symbolTable.hashTable[hashIndex] = entry;
@@ -59,7 +61,7 @@ void initializeSymbolTable()
     for(int i = 0; i < MAX_SCOPE_NUM; i++){
         symbolTable.scopeDisplay[i] = NULL;
     }
-    symbolTable.currentLevel = 0;
+    symbolTable.currentLevel = -1;
     symbolTable.scopeDisplayElementCount = 0;
 }
 
@@ -69,6 +71,15 @@ void symbolTableEnd()
 
 SymbolTableEntry* retrieveSymbol(char* symbolName)
 {
+    int hashIndex = HASH(symbolName);
+    SymbolTableEntry *entry = symbolTable.hashTable[hashIndex];
+    while(entry != NULL){
+        if(strcpy(entry->name, symbolName) == 0){
+            return entry;
+        }
+        entry = entry->nextInHashChain;
+    }
+    return NULL;
 }
 
 SymbolTableEntry* enterSymbol(char* symbolName, SymbolAttribute* attribute)
@@ -82,7 +93,7 @@ SymbolTableEntry* enterSymbol(char* symbolName, SymbolAttribute* attribute)
     // construct same name chain
     SymbolTableEntry *retrEntry = retrieveSymbol(entry->name);
     entry->sameNameInOuterLevel = retrEntry;
-    removeFromHashChain(HASH(entry->name), retrEntry);
+    removeFromHashChain(HASH(retrEntry->name), retrEntry);
     enterIntoHashChain(HASH(entry->name), entry);
     return entry;
 }
@@ -92,8 +103,16 @@ void removeSymbol(char* symbolName)
 {
 }
 
-int declaredLocally(char* symbolName)
+int isDeclaredLocally(char* symbolName)
 {
+    int hashIndex = HASH(symbolName);
+    SymbolTableEntry *entry = symbolTable.hashTable[hashIndex];
+    while(entry != NULL){
+        if(strcpy(entry->name, symbolName) == 0){
+            return entry->nestingLevel == symbolTable.currentLevel;
+        }
+    }
+    return 0;
 }
 
 void openScope()
@@ -103,5 +122,14 @@ void openScope()
 
 void closeScope()
 {
+    SymbolTableEntry *entry = symbolTable.scopeDisplay[symbolTable.currentLevel], *tmpEntry;
+    while(entry != NULL){
+        tmpEntry = entry;
+        removeFromHashChain(HASH(entry->name), entry);
+        enterIntoHashChain(HASH(entry->name), entry->sameNameInOuterLevel);
+        entry = entry->nextInSameLevel;
+        free(tmpEntry);
+    }
+    symbolTable.scopeDisplay[symbolTable.currentLevel] = NULL;
     symbolTable.currentLevel--;
 }

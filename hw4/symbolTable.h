@@ -12,7 +12,7 @@
 #define SYMBOL_TABLE_SYS_LIB_READ "read"
 #define SYMBOL_TABLE_SYS_LIB_FREAD "fread"
 #define HASH_TABLE_SIZE 256
-#define MAX_SCOPE_NUM 128
+#define MAX_SCOPE_NUM 64
 
 
 typedef enum SymbolAttributeKind
@@ -99,7 +99,7 @@ void symbolTableEnd();
 SymbolTableEntry* retrieveSymbol(char* symbolName);
 SymbolTableEntry* enterSymbol(char* symbolName, SymbolAttribute* attribute);
 void removeSymbol(char* symbolName);
-int declaredLocally(char* symbolName);
+int isDeclaredLocally(char* symbolName);
 void openScope();
 void closeScope();
 
