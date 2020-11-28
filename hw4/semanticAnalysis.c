@@ -110,10 +110,27 @@ DATA_TYPE getBiggerType(DATA_TYPE dataType1, DATA_TYPE dataType2)
 
 void processProgramNode(AST_NODE *programNode)
 {
+    if(programNode->child == NULL) return;
+    AST_NODE *globalDecl = programNode->child;
+    // decl is a func_decl or a var_decl_list
+    while(globalDecl != NULL){
+        if(globalDecl->AST_TYPE == VARIABLE_DECL_LIST_NODE){
+            AST_NODE *varDecl = globalDecl->child;
+            while(varDecl != NULL){
+                processDeclarationNode(varDecl);
+                varDecl = varDecl->rightSibling;
+            }
+        }
+        else{
+            processDeclarationNode(globalDecl);
+        }
+        globalDecl = globalDecl->rightSibling;
+    }
 }
 
 void processDeclarationNode(AST_NODE* declarationNode)
 {
+
 }
 
 
