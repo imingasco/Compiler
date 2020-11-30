@@ -47,8 +47,11 @@ void removeFromHashChain(int hashIndex, SymbolTableEntry* entry)
 void enterIntoHashChain(int hashIndex, SymbolTableEntry* entry)
 {
     if(entry == NULL) return;
-    entry->nextInHashChain = symbolTable.hashTable[hashIndex];
-    symbolTable.hashTable[hashIndex]->prevInHashChain = entry;
+    SymbolTableEntry *headEntry = symbolTable.hashTable[hashIndex];
+    entry->nextInHashChain = headEntry;
+    if(headEntry != NULL){
+        headEntry->prevInHashChain = entry;
+    }
     symbolTable.hashTable[hashIndex] = entry;
 }
 
@@ -85,7 +88,7 @@ SymbolTableEntry* retrieveSymbol(char* symbolName)
 SymbolTableEntry* enterSymbol(char* symbolName, SymbolAttribute* attribute)
 {
     SymbolTableEntry *entry = newSymbolTableEntry(symbolTable.currentLevel);
-    strcpy(entry->name, symbolName);
+    entry->name = symbolName;
     entry->attribute = attribute;
     // construct same level chain
     entry->nextInSameLevel = symbolTable.scopeDisplay[symbolTable.currentLevel];
@@ -93,7 +96,7 @@ SymbolTableEntry* enterSymbol(char* symbolName, SymbolAttribute* attribute)
     // construct same name chain
     SymbolTableEntry *retrEntry = retrieveSymbol(entry->name);
     entry->sameNameInOuterLevel = retrEntry;
-    removeFromHashChain(HASH(retrEntry->name), retrEntry);
+    removeFromHashChain(HASH(entry->name), retrEntry);
     enterIntoHashChain(HASH(entry->name), entry);
     return entry;
 }
@@ -108,9 +111,10 @@ int isDeclaredLocally(char* symbolName)
     int hashIndex = HASH(symbolName);
     SymbolTableEntry *entry = symbolTable.hashTable[hashIndex];
     while(entry != NULL){
-        if(strcpy(entry->name, symbolName) == 0){
+        if(strcmp(entry->name, symbolName) == 0){
             return entry->nestingLevel == symbolTable.currentLevel;
         }
+        entry = entry->nextInHashChain;
     }
     return 0;
 }

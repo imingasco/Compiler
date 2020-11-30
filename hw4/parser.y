@@ -7,6 +7,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include "header.h"
+#include "symbolTable.h"
 int linenumber = 1;
 AST_NODE *prog;
 
@@ -241,13 +242,13 @@ dim_fn      : MK_LB expr_null MK_RB
                 {
                     $$ = $2;
                 }
-            | dim_fn MK_LB expr MK_RB
+            | dim_fn MK_LB cexpr MK_RB
                 {
                     $$ = makeSibling($1, $3);
                 }
         ;
 
-expr_null   :expr 
+expr_null   :cexpr 
                 {
                     $$ = $1;
                 }
@@ -789,13 +790,18 @@ main (argc, argv)
 int argc;
 char *argv[];
   {
-     yyin = fopen(argv[1],"r");
+    yyin = fopen(argv[1],"r");
      yyparse();
-     printf("%s\n", "Parsing completed. No errors found.");
-     if(argc > 2)
-       printGV(prog, argv[2]);
-     else
-       printGV(prog, NULL);
+     printGV(prog, NULL);
+
+     initializeSymbolTable();
+
+     semanticAnalysis(prog);
+
+     symbolTableEnd();
+     if (!g_anyErrorOccur) {
+        printf("Parsing completed. No errors found.\n");
+     }
   } /* main */
 
 

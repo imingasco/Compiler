@@ -105,6 +105,8 @@ typedef struct EXPRSemanticValue
     
     int isConstEval;
 
+    C_type constType;
+    
     union
     {
         int iValue;
