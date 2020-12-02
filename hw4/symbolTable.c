@@ -82,6 +82,7 @@ SymbolTableEntry* retrieveSymbol(char* symbolName)
         }
         entry = entry->nextInHashChain;
     }
+    
     return NULL;
 }
 
