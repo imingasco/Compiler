@@ -302,15 +302,15 @@ void declareFunctionParam(AST_NODE *paramListNode, FunctionSignature *functionSi
             symbolAttr->attributeKind = VARIABLE_ATTRIBUTE;
             symbolAttr->attr.typeDescriptor = (TypeDescriptor *)malloc(sizeof(TypeDescriptor));
             switch (idNode->semantic_value.identifierSemanticValue.kind){
-            case NORMAL_ID:
-                symbolAttr->attr.typeDescriptor->kind = SCALAR_TYPE_DESCRIPTOR;
-                symbolAttr->attr.typeDescriptor->properties.dataType = dataType;
-                break;
-            case ARRAY_ID:
-                symbolAttr->attr.typeDescriptor->kind = ARRAY_TYPE_DESCRIPTOR;
-                symbolAttr->attr.typeDescriptor->properties.arrayProperties.elementType = dataType;
-                getArrayDimensionAndSize(symbolAttr, idNode, 1);
-                break;  
+                case NORMAL_ID:
+                    symbolAttr->attr.typeDescriptor->kind = SCALAR_TYPE_DESCRIPTOR;
+                    symbolAttr->attr.typeDescriptor->properties.dataType = dataType;
+                    break;
+                case ARRAY_ID:
+                    symbolAttr->attr.typeDescriptor->kind = ARRAY_TYPE_DESCRIPTOR;
+                    symbolAttr->attr.typeDescriptor->properties.arrayProperties.elementType = dataType;
+                    getArrayDimensionAndSize(symbolAttr, idNode, 1);
+                    break;  
             }
             enterSymbol(idName, symbolAttr);
         }
@@ -465,6 +465,7 @@ void checkReturnStmt(AST_NODE* returnNode)
 
 void checkBlockNode(AST_NODE* blockNode)
 {
+    // Open a scope in the previous node, since not every block opens a new scope. e.g. funcID--paramList--Block
 }
 
 
