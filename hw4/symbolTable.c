@@ -77,7 +77,7 @@ SymbolTableEntry* retrieveSymbol(char* symbolName)
     int hashIndex = HASH(symbolName);
     SymbolTableEntry *entry = symbolTable.hashTable[hashIndex];
     while(entry != NULL){
-        if(strcpy(entry->name, symbolName) == 0){
+        if(strcmp(entry->name, symbolName) == 0){
             return entry;
         }
         entry = entry->nextInHashChain;
@@ -132,7 +132,7 @@ void closeScope()
         removeFromHashChain(HASH(entry->name), entry);
         enterIntoHashChain(HASH(entry->name), entry->sameNameInOuterLevel);
         entry = entry->nextInSameLevel;
-        free(tmpEntry);
+        //free(tmpEntry);
     }
     symbolTable.scopeDisplay[symbolTable.currentLevel] = NULL;
     symbolTable.currentLevel--;
