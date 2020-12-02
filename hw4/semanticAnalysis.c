@@ -226,7 +226,7 @@ void declareVariable(AST_NODE *declarationNode){
                 case ARRAY_ID:
                     symbolAttr->attr.typeDescriptor->kind = ARRAY_TYPE_DESCRIPTOR;
                     symbolAttr->attr.typeDescriptor->properties.arrayProperties.elementType = dataType;
-                    getArrayDimensionAndSize(symbolAttr, idNode, ignoreFirstDimSize);
+                    getArrayDimensionAndSize(symbolAttr, idNode, 0);
                     break;
                 case WITH_INIT_ID:
                     break;
@@ -340,13 +340,13 @@ void checkWhileStmt(AST_NODE* whileNode)
 
 void checkForStmt(AST_NODE* forNode)
 {
-    AST_Node *initAssignExprRoot = forNode->child;
-    AST_Node *initAssignExpr = initAssignExprRoot->child;
-    AST_Node *relopExprRoot = initAssignExprRoot->rightSibling;
-    AST_Node *relopExpr = relopExprRoot->child;
-    AST_Node *updateAssignExprRoot = relopExprRoot->rightSibling;
-    AST_Node *updateAssignExpr = updateAssignExprRoot->child;
-    AST_Node *stmtNode = updateAssignExprRoot->rightSibling;
+    AST_NODE *initAssignExprRoot = forNode->child;
+    AST_NODE *initAssignExpr = initAssignExprRoot->child;
+    AST_NODE *relopExprRoot = initAssignExprRoot->rightSibling;
+    AST_NODE *relopExpr = relopExprRoot->child;
+    AST_NODE *updateAssignExprRoot = relopExprRoot->rightSibling;
+    AST_NODE *updateAssignExpr = updateAssignExprRoot->child;
+    AST_NODE *stmtNode = updateAssignExprRoot->rightSibling;
     while(initAssignExpr){
         checkAssignmentStmt(initAssignExpr);
         initAssignExpr = initAssignExpr->rightSibling;
@@ -365,8 +365,8 @@ void checkForStmt(AST_NODE* forNode)
 
 void checkAssignmentStmt(AST_NODE* assignmentNode)
 {
-    AST_Node *leftNode = assignmentNode->child;
-    AST_Node *rightNode = leftNode->rightSibling;
+    AST_NODE *leftNode = assignmentNode->child;
+    AST_NODE *rightNode = leftNode->rightSibling;
     DATA_TYPE leftNodeType;
     DATA_TYPE rightNodeType;
     // check variable is available at this scope
