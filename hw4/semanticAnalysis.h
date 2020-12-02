@@ -13,10 +13,10 @@ void declareIdList(AST_NODE* typeNode, SymbolAttributeKind isVariableOrTypeAttri
 void declareType(AST_NODE *declarationNode);
 void declareVariable(AST_NODE *declaratioNode);
 void declareFunction(AST_NODE* returnTypeNode);
-void declareFunctionParam(AST_NODE *declarationNode);
+void declareFunctionParam(AST_NODE *declarationNode, FunctionSignature *functionSignature);
 void getArrayDimensionAndSize(SymbolAttribute *symbolAttr, AST_NODE *idNode, int ignoreFirstDimSize);
 void checkDeclDimList(AST_NODE* variableDeclDimList, TypeDescriptor* typeDescriptor, int ignoreFirstDimSize);
-void checkTypeNode(AST_NODE* typeNode);
+void checkTypeNode(AST_NODE* typeNode, DATA_TYPE *dataType);
 void checkBlockNode(AST_NODE* blockNode);
 void checkStmtNode(AST_NODE* stmtNode);
 void checkGeneralNode(AST_NODE *node);
