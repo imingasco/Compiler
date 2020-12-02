@@ -333,18 +333,55 @@ void checkWhileStmt(AST_NODE* whileNode)
 {
     AST_NODE *testExprRoot = whileNode->child;
     AST_NODE *stmtNode = testExprRoot->rightSibling;
-    checkExprRelatedNode
+    checkExprRelatedNode(testExprRoot);
     checkStmtNode(stmtNode);
 }
 
 
 void checkForStmt(AST_NODE* forNode)
 {
+    AST_Node *initAssignExprRoot = forNode->child;
+    AST_Node *initAssignExpr = initAssignExprRoot->child;
+    AST_Node *relopExprRoot = initAssignExprRoot->rightSibling;
+    AST_Node *relopExpr = relopExprRoot->child;
+    AST_Node *updateAssignExprRoot = relopExprRoot->rightSibling;
+    AST_Node *updateAssignExpr = updateAssignExprRoot->child;
+    AST_Node *stmtNode = updateAssignExprRoot->rightSibling;
+    while(initAssignExpr){
+        checkAssignmentStmt(initAssignExpr);
+        initAssignExpr = initAssignExpr->rightSibling;
+    }
+    while(relopExpr){
+        checkExprRelated(relopExpr);
+        relopExpr = relopExpr->rightSibling;
+    }
+    while(updateAssignExpr){
+        checkAssignmentStmt(updateAssignExpr);
+        updateAssignExpr = updateAssignExpr->rightSibling;
+    }
+    checkStmtNode(stmtNode);
 }
 
 
 void checkAssignmentStmt(AST_NODE* assignmentNode)
 {
+    AST_Node *leftNode = assignmentNode->child;
+    AST_Node *rightNode = leftNode->rightSibling;
+    DATA_TYPE leftNodeType;
+    DATA_TYPE rightNodeType;
+    // check variable is available at this scope
+    char *variableName = leftNode->semantic_value.identifierSemanticValue.identifierName;
+    SymbolTableEntry *leftNodeSymbol = retrieveSymbol(variableName);
+    if(leftNodeSymbol == NULL){
+        // error
+    }
+    // available, check this name is function or variable
+    else if(leftNodeSymbol->attribute->attributeKind == FUNCTION_SIGNATURE){
+        // error
+    }
+    if(rightNode->nodeType == CONST_VALUE_NODE){
+        
+    }
 }
 
 
