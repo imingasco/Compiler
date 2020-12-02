@@ -77,12 +77,11 @@ SymbolTableEntry* retrieveSymbol(char* symbolName)
     int hashIndex = HASH(symbolName);
     SymbolTableEntry *entry = symbolTable.hashTable[hashIndex];
     while(entry != NULL){
-        if(strcpy(entry->name, symbolName) == 0){
+        if(strcmp(entry->name, symbolName) == 0){
             return entry;
         }
         entry = entry->nextInHashChain;
     }
-    
     return NULL;
 }
 

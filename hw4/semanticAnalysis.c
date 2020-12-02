@@ -69,7 +69,7 @@ void printErrorMsg(AST_NODE* node, ErrorMsgKind errorMsgKind)
 
 void semanticAnalysis(AST_NODE *root)
 {
-    processProgramNode(root);
+    checkProgramNode(root);
 }
 
 
@@ -83,7 +83,7 @@ DATA_TYPE getBiggerType(DATA_TYPE dataType1, DATA_TYPE dataType2)
 }
 
 
-void processProgramNode(AST_NODE *programNode)
+void checkProgramNode(AST_NODE *programNode)
 {
     if(programNode->child == NULL) return;
     openScope();
@@ -94,12 +94,12 @@ void processProgramNode(AST_NODE *programNode)
         if(globalDecl->nodeType == VARIABLE_DECL_LIST_NODE){
             AST_NODE *declList = globalDecl->child;
             while(declList != NULL){
-                processDeclarationNode(declList);
+                checkDeclarationNode(declList);
                 declList = declList->rightSibling;
             }
         }
         else if(globalDecl->nodeType == DECLARATION_NODE){
-            processDeclarationNode(globalDecl);
+            checkDeclarationNode(globalDecl);
         }
         else{
             printf("There is an exception type = %d in program node.\n", globalDecl->nodeType);
@@ -134,7 +134,7 @@ void initType(){
     enterSymbol("void", symbolAttr);
 }
 
-void processDeclarationNode(AST_NODE* declarationNode)
+void checkDeclarationNode(AST_NODE* declarationNode)
 {
     switch(declarationNode->semantic_value.declSemanticValue.kind){
         case TYPE_DECL:
@@ -316,7 +316,7 @@ void declareFunctionParam(AST_NODE *declarationNode){
 }
 
 
-void processTypeNode(AST_NODE* idNodeAsType)
+void checkTypeNode(AST_NODE* idNodeAsType)
 {
 }
 
@@ -331,6 +331,10 @@ void checkAssignOrExpr(AST_NODE* assignOrExprRelatedNode)
 
 void checkWhileStmt(AST_NODE* whileNode)
 {
+    AST_NODE *testExprRoot = whileNode->child;
+    AST_NODE *stmtNode = testExprRoot->rightSibling;
+    checkExprRelatedNode
+    checkStmtNode(stmtNode);
 }
 
 
@@ -361,7 +365,7 @@ void checkParameterPassing(Parameter* formalParameter, AST_NODE* actualParameter
 }
 
 
-void processExprRelatedNode(AST_NODE* exprRelatedNode)
+void checkExprRelatedNode(AST_NODE* exprRelatedNode)
 {
 }
 
@@ -374,21 +378,21 @@ void evaluateExprValue(AST_NODE* exprNode)
 }
 
 
-void processExprNode(AST_NODE* exprNode)
+void checkExprNode(AST_NODE* exprNode)
 {
 }
 
 
-void processVariableLValue(AST_NODE* idNode)
+void checkVariableLValue(AST_NODE* idNode)
 {
 }
 
-void processVariableRValue(AST_NODE* idNode)
+void checkVariableRValue(AST_NODE* idNode)
 {
 }
 
 
-void processConstValueNode(AST_NODE* constValueNode)
+void checkConstValueNode(AST_NODE* constValueNode)
 {
 }
 
@@ -398,21 +402,21 @@ void checkReturnStmt(AST_NODE* returnNode)
 }
 
 
-void processBlockNode(AST_NODE* blockNode)
+void checkBlockNode(AST_NODE* blockNode)
 {
 }
 
 
-void processStmtNode(AST_NODE* stmtNode)
+void checkStmtNode(AST_NODE* stmtNode)
 {
 }
 
 
-void processGeneralNode(AST_NODE *node)
+void checkGeneralNode(AST_NODE *node)
 {
 }
 
-void processDeclDimList(AST_NODE* idNode, TypeDescriptor* typeDescriptor, int ignoreFirstDimSize)
+void checkDeclDimList(AST_NODE* idNode, TypeDescriptor* typeDescriptor, int ignoreFirstDimSize)
 {
 }
 
