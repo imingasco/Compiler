@@ -433,7 +433,7 @@ void checkAssignmentStmt(AST_NODE* assignmentNode)
     // name is an array name
     else if(leftNodeSymbol->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR){
         // check dimension
-        ArrayProperties property = leftNodeSymbol->attribute->attr.typeDescriptor.properties.arrayProperties;
+        ArrayProperties property = leftNodeSymbol->attribute->attr.typeDescriptor->properties.arrayProperties;
         checkArrayReference(leftNode->child, property);
         leftNodeType = property.elementType;
     }
@@ -465,9 +465,9 @@ void checkParameterPassing(Parameter* formalParameter, AST_NODE* actualParameter
 int isRelativeOperation(AST_NODE *exprRelatedNode){
     EXPRSemanticValue val = exprRelatedNode->semantic_value.exprSemanticValue;
     if(val.kind == BINARY_OPERATION && \
-      (val.op == BINARY_EQ || val.op == BINARY_GE || val.op == BINARY_LE || \
-       val.op == BINARY_NE || val.op == BINARY_GT || val.op == BINARY_LT || \
-       val.op == BINARY_OR || val.op == BINARY_AND))
+      (val.op.binaryOp == BINARY_OP_EQ || val.op.binaryOp == BINARY_OP_GE || val.op.binaryOp == BINARY_OP_LE || \
+       val.op.binaryOp == BINARY_OP_NE || val.op.binaryOp == BINARY_OP_GT || val.op.binaryOp == BINARY_OP_LT || \
+       val.op.binaryOp == BINARY_OP_OR || val.op.binaryOp == BINARY_OP_AND))
         return 1;
     else 
         return 0;
@@ -477,7 +477,7 @@ void checkExprRelatedNode(AST_NODE* exprRelatedNode)
 {
     if(exprRelatedNode->nodeType == CONST_VALUE_NODE){
         // put data type in dataType field of AST_NODE
-        if(exprRelatedNode->semantic_value.const1->constType == INTEGERC)
+        if(exprRelatedNode->semantic_value.const1->const_type == INTEGERC)
             exprRelatedNode->dataType = INT_TYPE;
         else
             exprRelatedNode->dataType = FLOAT_TYPE;
@@ -503,7 +503,7 @@ void checkExprRelatedNode(AST_NODE* exprRelatedNode)
         }
         // identifier is an array
         else if(identifier->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR){
-            ArrayProperties property = exprRelatedNode->attribute->attr.typeDescriptor.properties.arrayProperties;
+            ArrayProperties property = identifier->attribute->attr.typeDescriptor->properties.arrayProperties;
             checkArrayReference(exprRelatedNode->child, property);
             exprRelatedNode->dataType = identifier->attribute->attr.typeDescriptor->properties.arrayProperties.elementType;
             return;
