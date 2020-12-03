@@ -392,21 +392,48 @@ void checkArrayReference(AST_NODE *arrayDimension, ArrayProperties property)
     int nowDimension = 0;
 
     while(arrayDimension){
-        int assignDimensionIndex = arrayDimension->semantic_value.const1->const_u.intval;
-        if(assignDimensionIndex >= property.sizeInEachDimension[nowDimension]){
-            // out of bound error
+        // constant index
+        if(arrayDimension->nodeType == CONST_VALUE_NODE){
+            int assignDimensionIndex = arrayDimension->semantic_value.const1->const_u.intval;
+            if(nowDimension < property.dimension && assignDimensionIndex >= property.sizeInEachDimension[nowDimension]){
+                // out of bound error
+                arrayDimension->leftmostSibling->nodeType = ERROR_TYPE;
+            }
+            else if(nowDimension < property.dimension && assignDimensionIndex < 0){
+                // negative index error
+                arrayDimension->leftmostSibling->nodeType = ERROR_TYPE;
+            }
         }
-        else if(assignDimensionIndex < 0){
-            // negative index error
+        // expression index
+        else if(arrayDimension->nodeType == EXPR_NODE){
+            checkExprNode(arrayDimension);
+            if(arrayDimension->dataType == FLOAT_TYPE){
+                // index not an integer error
+                arrayDimension->leftmostSibling->nodeType = ERROR_TYPE;
+            }
+            else if(nowDimension < property.dimension && arrayDimension->semantic_value.exprSemanticValue.isConstEval){
+                if(arrayDimension->semantic_value.exprSemanticValue.constEvalValue.iValue >= \
+                   property.sizeInEachDimension[nowDimension]){
+                    // out of bound error(const expression)
+                    arrayDimension->leftmostSibling->nodeType = ERROR_TYPE;
+                    
+                }
+                else if(arrayDimension->semantic_value.exprSemanticValue.constEvalValue.iValue < 0){
+                    // negative index error
+                    arrayDimension->leftmostSibling->nodeType = ERROR_TYPE;
+                }
+            }
         }
         arrayDimension = arrayDimension->rightSibling;
         nowDimension++;
     }
     if(nowDimension < property.dimension){
         // assign to an array address error    
+        arrayDimension->leftmostSibling->nodeType = ERROR_TYPE;
     }
     else if(nowDimension > property.dimension){
         // dimension error
+        arrayDimension->leftmostSibling->nodeType = ERROR_TYPE;
     }
     return;
 }
@@ -442,6 +469,9 @@ void checkAssignmentStmt(AST_NODE* assignmentNode)
         leftNodeType = leftNodeSymbol->attribute->attr.typeDescriptor->properties.dataType;
     checkExprRelatedNode(rightNode);
     rightNodeType = rightNode->dataType;
+    if(leftNodeType == INT_TYPE && rightNodeType == FLOAT_TYPE){
+
+    }
     return;
 }
 
@@ -465,9 +495,9 @@ void checkParameterPassing(Parameter* formalParameter, AST_NODE* actualParameter
 int isRelativeOperation(AST_NODE *exprRelatedNode){
     EXPRSemanticValue val = exprRelatedNode->semantic_value.exprSemanticValue;
     if(val.kind == BINARY_OPERATION && \
-      (val.op == BINARY_EQ || val.op == BINARY_GE || val.op == BINARY_LE || \
-       val.op == BINARY_NE || val.op == BINARY_GT || val.op == BINARY_LT || \
-       val.op == BINARY_OR || val.op == BINARY_AND))
+      (val.op == BINARY_OP_EQ || val.op == BINARY_OP_GE || val.op == BINARY_OP_LE || \
+       val.op == BINARY_OP_NE || val.op == BINARY_OP_GT || val.op == BINARY_OP_LT || \
+       val.op == BINARY_OP_OR || val.op == BINARY_OP_AND))
         return 1;
     else 
         return 0;
@@ -475,45 +505,7 @@ int isRelativeOperation(AST_NODE *exprRelatedNode){
 
 void checkExprRelatedNode(AST_NODE* exprRelatedNode)
 {
-    if(exprRelatedNode->nodeType == CONST_VALUE_NODE){
-        // put data type in dataType field of AST_NODE
-        if(exprRelatedNode->semantic_value.const1->constType == INTEGERC)
-            exprRelatedNode->dataType = INT_TYPE;
-        else
-            exprRelatedNode->dataType = FLOAT_TYPE;
-        return;
-    }
-    else if(exprRelatedNode->nodeType == IDENTIFIER_NODE){
-        char *identifierName = exprRelatedNode->semantic_value.identifierSemanticValue.identifierName;
-        SymbolTableEntry *identifier = retrieveSymbol(identifierName);
-        // identifier not available
-        if(identifier == NULL){
-            // error
-        }
-        // identifier is a function
-        else if(identifier->attribute->attributeKind == FUNCTION_SIGNATURE){
-            // check function call
-            checkFunctionCall(exprRelatedNode);
-            exprRelatedNode->dataType = identifier->attribute->attr.functionSignature->returnType;
-            return;
-        }
-        // identifier is a typedef
-        else if(identifier->attribute->attributeKind == TYPE_ATTRIBUTE){
-            // error
-        }
-        // identifier is an array
-        else if(identifier->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR){
-            ArrayProperties property = exprRelatedNode->attribute->attr.typeDescriptor.properties.arrayProperties;
-            checkArrayReference(exprRelatedNode->child, property);
-            exprRelatedNode->dataType = identifier->attribute->attr.typeDescriptor->properties.arrayProperties.elementType;
-            return;
-        }
-        else{
-            exprRelatedNode->dataType = identifier->attribute->attr.typeDescriptor->properties.dataType;
-            return;
-        }
-    }
-    else if(isRelativeOperation(exprRelatedNode)){
+    if(isRelativeOperation(exprRelatedNode)){
         checkExprRelatedNode(exprRelatedNode->child);
         checkExprRelatedNode(exprRelatedNode->child->rightSibling);
         // value of relative expression: 0 or 1(integer)
@@ -535,6 +527,62 @@ void evaluateExprValue(AST_NODE* exprNode)
 
 void checkExprNode(AST_NODE* exprNode)
 {
+    if(exprNode->nodeType == CONST_VALUE_NODE){
+        // put data type in dataType field of AST_NODE
+        if(exprNode->semantic_value.const1->constType == INTEGERC)
+            exprNode->dataType = INT_TYPE;
+        else
+            exprNode->dataType = FLOAT_TYPE;
+        return;
+    }
+    else if(exprNode->nodeType == STMT_NODE && \
+            exprNode->semantic_value.stmtSemanticValue.kind == FUNCTION_CALL_STMT){
+        checkFunctionCall(exprNode);
+        return;
+    }
+    else if(exprNode->nodeType == IDENTIFIER_NODE){
+        char *identifierName = exprNode->semantic_value.identifierSemanticValue.identifierName;
+        SymbolTableEntry *identifier = retrieveSymbol(identifierName);
+        // identifier not available
+        if(identifier == NULL){
+            // error
+            exprNode->dataType = ERROR_TYPE;
+        }
+        // identifier is a function
+        else if(identifier->attribute->attributeKind == FUNCTION_SIGNATURE){
+            // error
+            exprNode->dataType = ERROR_TYPE;
+        }
+        // identifier is a typedef
+        else if(identifier->attribute->attributeKind == TYPE_ATTRIBUTE){
+            // error
+            exprNode->dataType = ERROR_TYPE;
+        }
+        // identifier is an array
+        else if(identifier->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR){
+            ArrayProperties property = exprNode->attribute->attr.typeDescriptor.properties.arrayProperties;
+            checkArrayReference(exprNode->child, property);
+            if(exprNode->child->dataType == ERROR_TYPE)
+                exprNode->dataType = ERROR_TYPE;
+            else
+                exprNode->dataType = identifier->attribute->attr.typeDescriptor->properties.arrayProperties.elementType;
+            return;
+        }
+        // identifier is a scalar
+        else{
+            exprNode->dataType = identifier->attribute->attr.typeDescriptor->properties.dataType;
+            return;
+        }
+    }
+    AST_NODE *leftNode = exprNode->child;
+    AST_NODE *rightNode = leftNode->rightSibling;
+    else if(isRelativeOperation(exprNode)){
+        checkExprRelatedNode(exprNode->child);
+        checkExprRelatedNode(exprNode->child->rightSibling);
+        // value of relative expression: 0 or 1(integer)
+        exprNode->dataType = INT_TYPE;
+    }
+    return;
 }
 
 
