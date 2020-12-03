@@ -384,8 +384,32 @@ void checkForStmt(AST_NODE* forNode)
         updateAssignExpr = updateAssignExpr->rightSibling;
     }
     checkStmtNode(stmtNode);
+    return;
 }
 
+void checkArrayReference(AST_NODE *arrayDimension, ArrayProperties property)
+{
+    int nowDimension = 0;
+
+    while(arrayDimension){
+        int assignDimensionIndex = arrayDimension->semantic_value.const1->const_u.intval;
+        if(assignDimensionIndex >= property.sizeInEachDimension[nowDimension]){
+            // out of bound error
+        }
+        else if(assignDimensionIndex < 0){
+            // negative index error
+        }
+        arrayDimension = arrayDimension->rightSibling;
+        nowDimension++;
+    }
+    if(nowDimension < property.dimension){
+        // assign to an array address error    
+    }
+    else if(nowDimension > property.dimension){
+        // dimension error
+    }
+    return;
+}
 
 void checkAssignmentStmt(AST_NODE* assignmentNode)
 {
@@ -397,15 +421,28 @@ void checkAssignmentStmt(AST_NODE* assignmentNode)
     char *variableName = leftNode->semantic_value.identifierSemanticValue.identifierName;
     SymbolTableEntry *leftNodeSymbol = retrieveSymbol(variableName);
     if(leftNodeSymbol == NULL){
-        // error
+        // unavailable, error
     }
-    // available, check this name is function or variable
+    // available, check this name is function, typedef or variable
     else if(leftNodeSymbol->attribute->attributeKind == FUNCTION_SIGNATURE){
-        // error
+        // name is function, error
     }
-    if(rightNode->nodeType == CONST_VALUE_NODE){
-        
+    else if(leftNodeSymbol->attribute->attributeKind == TYPE_ATTRIBUTE){
+        // name is typedef, error
     }
+    // name is an array name
+    else if(leftNodeSymbol->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR){
+        // check dimension
+        ArrayProperties property = leftNodeSymbol->attribute->attr.typeDescriptor.properties.arrayProperties;
+        checkArrayReference(leftNode->child, property);
+        leftNodeType = property.elementType;
+    }
+    // name is a scalar variable
+    else
+        leftNodeType = leftNodeSymbol->attribute->attr.typeDescriptor->properties.dataType;
+    checkExprRelatedNode(rightNode);
+    rightNodeType = rightNode->dataType;
+    return;
 }
 
 
@@ -425,9 +462,66 @@ void checkParameterPassing(Parameter* formalParameter, AST_NODE* actualParameter
 {
 }
 
+int isRelativeOperation(AST_NODE *exprRelatedNode){
+    EXPRSemanticValue val = exprRelatedNode->semantic_value.exprSemanticValue;
+    if(val.kind == BINARY_OPERATION && \
+      (val.op == BINARY_EQ || val.op == BINARY_GE || val.op == BINARY_LE || \
+       val.op == BINARY_NE || val.op == BINARY_GT || val.op == BINARY_LT || \
+       val.op == BINARY_OR || val.op == BINARY_AND))
+        return 1;
+    else 
+        return 0;
+}
 
 void checkExprRelatedNode(AST_NODE* exprRelatedNode)
 {
+    if(exprRelatedNode->nodeType == CONST_VALUE_NODE){
+        // put data type in dataType field of AST_NODE
+        if(exprRelatedNode->semantic_value.const1->constType == INTEGERC)
+            exprRelatedNode->dataType = INT_TYPE;
+        else
+            exprRelatedNode->dataType = FLOAT_TYPE;
+        return;
+    }
+    else if(exprRelatedNode->nodeType == IDENTIFIER_NODE){
+        char *identifierName = exprRelatedNode->semantic_value.identifierSemanticValue.identifierName;
+        SymbolTableEntry *identifier = retrieveSymbol(identifierName);
+        // identifier not available
+        if(identifier == NULL){
+            // error
+        }
+        // identifier is a function
+        else if(identifier->attribute->attributeKind == FUNCTION_SIGNATURE){
+            // check function call
+            checkFunctionCall(exprRelatedNode);
+            exprRelatedNode->dataType = identifier->attribute->attr.functionSignature->returnType;
+            return;
+        }
+        // identifier is a typedef
+        else if(identifier->attribute->attributeKind == TYPE_ATTRIBUTE){
+            // error
+        }
+        // identifier is an array
+        else if(identifier->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR){
+            ArrayProperties property = exprRelatedNode->attribute->attr.typeDescriptor.properties.arrayProperties;
+            checkArrayReference(exprRelatedNode->child, property);
+            exprRelatedNode->dataType = identifier->attribute->attr.typeDescriptor->properties.arrayProperties.elementType;
+            return;
+        }
+        else{
+            exprRelatedNode->dataType = identifier->attribute->attr.typeDescriptor->properties.dataType;
+            return;
+        }
+    }
+    else if(isRelativeOperation(exprRelatedNode)){
+        checkExprRelatedNode(exprRelatedNode->child);
+        checkExprRelatedNode(exprRelatedNode->child->rightSibling);
+        // value of relative expression: 0 or 1(integer)
+        exprRelatedNode->dataType = INT_TYPE;
+    }
+    else
+        checkExprNode(exprRelatedNode);
+    return;
 }
 
 void getExprOrConstValue(AST_NODE* exprOrConstNode, int* iValue, float* fValue)
