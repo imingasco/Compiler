@@ -466,6 +466,30 @@ void checkReturnStmt(AST_NODE* returnNode)
 void checkBlockNode(AST_NODE* blockNode)
 {
     // Open a scope in the previous node, since not every block opens a new scope. e.g. funcID--paramList--Block
+    if(blockNode->child == NULL) return;
+    AST_NODE *declList, *stmtList;
+    if(blockNode->child->nodeType == VARIABLE_DECL_LIST_NODE){
+        declList = blockNode->child;
+        stmtList = declList->rightSibling;
+    }
+    else{
+        declList = NULL;
+        stmtList = blockNode->child;
+    }
+    if(declList != NULL){
+        AST_NODE *decl = declList->child;
+        while(decl != NULL){
+            checkDeclarationNode(decl);
+            decl = decl->rightSibling;
+        }
+    }
+    if(stmtList != NULL){
+        AST_NODE *stmt = stmtList->child;
+        while(stmt != NULL){
+            checkStmtNode(stmt);
+            stmt = stmt->rightSibling;
+        }
+    }
 }
 
 
