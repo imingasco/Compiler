@@ -456,6 +456,22 @@ void checkWriteFunction(AST_NODE* functionCallNode)
 
 void checkFunctionCall(AST_NODE* functionCallNode)
 {
+    AST_NODE *idNode = functionCallNode->child;
+    AST_NODE *paramNode = idNode->rightSibling->child;
+    char *idName = idNode->semantic_value.identifierSemanticValue.identifierName;
+    SymbolTableEntry *idEntry = retrieveSymbol(idName);
+    if(idEntry == NULL){
+        // warning : implicit declaration
+        functionCallNode->dataType = ERROR_TYPE;
+        return;
+    }
+    else if(idEntry->attribute->attributeKind != FUNCTION_SIGNATURE){
+        // error : not callable
+        functionCallNode->dataType = ERROR_TYPE;
+        return;
+    }
+    checkParameterPassing(idEntry->attribute->attr.functionSignature->parameterList, paramNode);
+    functionCallNode->dataType = idEntry->attribute->attr.functionSignature->returnType;
 }
 
 void checkParameterPassing(Parameter* formalParameter, AST_NODE* actualParameter)
