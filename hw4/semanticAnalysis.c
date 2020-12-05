@@ -608,21 +608,21 @@ void getExprOrConstValue(AST_NODE* exprOrConstNode, int* iValue, float* fValue)
     if(exprOrConstNode->nodeType == CONST_VALUE_NODE){
         if(exprOrConstNode->semantic_value.const1->const_type == INTEGERC){
             i = exprOrConstNode->semantic_value.const1->const_u.intval;
-            ivalue = &i;
+            iValue = &i;
         }
         else{
             f = exprOrConstNode->semantic_value.const1->const_u.fval;
-            fvalue = &f;
+            fValue = &f;
         }
     }
     else if(exprOrConstNode->semantic_value.exprSemanticValue.isConstEval == 1){
         if(exprOrConstNode->dataType == INT_TYPE){
             i = exprOrConstNode->semantic_value.exprSemanticValue.constEvalValue.iValue;
-            ivalue = &i;
+            iValue = &i;
         }
         else{
             f = exprOrConstNode->semantic_value.exprSemanticValue.constEvalValue.fValue;
-            fvalue = &f;
+            fValue = &f;
         }
     }
     return;
@@ -735,7 +735,7 @@ void evaluateExprValue(AST_NODE* exprNode)
         }
     }
     else{
-        exprNode->semantic_value.isConstEval = 0;
+        exprNode->semantic_value.exprSemanticValue.isConstEval = 0;
         if(leftNode->dataType == ERROR_TYPE || rightNode->dataType == ERROR_TYPE)
             exprNode->dataType = ERROR_TYPE;
         else
@@ -786,7 +786,7 @@ void checkExprNode(AST_NODE* exprNode)
         }
         // identifier is an array
         else if(identifier->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR){
-            ArrayProperties property = exprNode->attribute->attr.typeDescriptor.properties.arrayProperties;
+            ArrayProperties property = identifier->attribute->attr.typeDescriptor->properties.arrayProperties;
             checkArrayReference(exprNode->child, property);
         }
         // identifier is a scalar
