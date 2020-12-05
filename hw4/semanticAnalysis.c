@@ -677,25 +677,25 @@ void evaluateExprValue(AST_NODE* exprNode)
         // left integer, right float
         else if(livalue && rfvalue){
             if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_ADD)
-                exprNode->semantic_value.exprSemanticValue.constEvalValue.fValue = (float)*livalue + *rfvalue;
+                exprNode->semantic_value.exprSemanticValue.constEvalValue.fValue = (double)*livalue + *rfvalue;
             else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_SUB)
-                exprNode->semantic_value.exprSemanticValue.constEvalValue.fValue = (float)*livalue - *rfvalue;
+                exprNode->semantic_value.exprSemanticValue.constEvalValue.fValue = (double)*livalue - *rfvalue;
             else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_MUL)
-                exprNode->semantic_value.exprSemanticValue.constEvalValue.fValue = (float)*livalue * *rfvalue;
+                exprNode->semantic_value.exprSemanticValue.constEvalValue.fValue = (double)*livalue * *rfvalue;
             else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_DIV)
-                exprNode->semantic_value.exprSemanticValue.constEvalValue.fValue = (float)*livalue / *rfvalue;
+                exprNode->semantic_value.exprSemanticValue.constEvalValue.fValue = (double)*livalue / *rfvalue;
             exprNode->dataType = FLOAT_TYPE;
         }
         // left float, right integer
         else if(lfvalue && rivalue){
             if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_ADD)
-                exprNode->semantic_value.exprSemanticValue.constEvalValue.fValue = *lfvalue + (float)*rivalue;
+                exprNode->semantic_value.exprSemanticValue.constEvalValue.fValue = *lfvalue + (double)*rivalue;
             else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_SUB)
-                exprNode->semantic_value.exprSemanticValue.constEvalValue.fValue = *lfvalue - (float)*rivalue;
+                exprNode->semantic_value.exprSemanticValue.constEvalValue.fValue = *lfvalue - (double)*rivalue;
             else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_MUL)
-                exprNode->semantic_value.exprSemanticValue.constEvalValue.fValue = *lfvalue * (float)*rivalue;
+                exprNode->semantic_value.exprSemanticValue.constEvalValue.fValue = *lfvalue * (double)*rivalue;
             else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_DIV)
-                exprNode->semantic_value.exprSemanticValue.constEvalValue.fValue = *lfvalue / (float)*rivalue;
+                exprNode->semantic_value.exprSemanticValue.constEvalValue.fValue = *lfvalue / (double)*rivalue;
             exprNode->dataType = FLOAT_TYPE;
         }
         // both float
