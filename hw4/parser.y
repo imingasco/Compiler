@@ -406,6 +406,16 @@ cfactor:    CONST
                     /*TODO*/
                     $$ = $2;
                 }
+            | una_op CONST
+                {
+                    AST_NODE *const_node = Allocate(CONST_VALUE_NODE);
+                    const_node->semantic_value.const1 = $2;
+                    $$ = makeChild($1, const_node);
+                }
+            | una_op MK_LPAREN cexpr MK_RPAREN
+                {
+                    $$ = makeChild($1, $3);
+                }
             ;
 
 init_id_list    : init_id 
