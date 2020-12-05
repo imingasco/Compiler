@@ -61,6 +61,8 @@ void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKin
         case IS_TYPE_NOT_VARIABLE:
             printf("%s is a type, not variable\n", name2);
             break;
+        case PASS_ARRAY_TO_SCALAR:
+            printf("invalid conversion from %s\n", name2);
             /*
         default:
             printf("Unhandled case in void printErrorMsg(AST_NODE* node, ERROR_MSG_KIND* errorMsgKind)\n");
@@ -239,16 +241,19 @@ void declareVariable(AST_NODE *declarationNode){
 void getArrayDimensionAndSize(SymbolAttribute *symbolAttr, AST_NODE *idNode, int ignoreFirstDimSize){
     int *dim = &(symbolAttr->attr.typeDescriptor->properties.arrayProperties.dimension);
     int *size = symbolAttr->attr.typeDescriptor->properties.arrayProperties.sizeInEachDimension;
+    *dim = 0;
+    AST_NODE *arrayDimension = idNode->child;
     if(ignoreFirstDimSize){
         size[(*dim)++] = -1;
-        idNode = idNode->rightSibling;
+        arrayDimension = arrayDimension->rightSibling;
     }
-    while(idNode != NULL){
-        switch(idNode->nodeType){
+    while(arrayDimension != NULL){
+        printf("%d\n", arrayDimension->nodeType);
+        switch(arrayDimension->nodeType){
             case CONST_VALUE_NODE:
-                switch(idNode->semantic_value.const1->const_type){
+                switch(arrayDimension->semantic_value.const1->const_type){
                     case INTEGERC:
-                        size[*(dim)++] = idNode->semantic_value.const1->const_u.intval;
+                        size[(*dim)++] = arrayDimension->semantic_value.const1->const_u.intval;
                         if(size[*dim - 1] < 0){
                             // error : negative size
                         }
@@ -260,9 +265,9 @@ void getArrayDimensionAndSize(SymbolAttribute *symbolAttr, AST_NODE *idNode, int
                 break;
             // this case is fucking complicated, process later.
             case EXPR_NODE:
-                if(idNode->semantic_value.exprSemanticValue.isConstEval){
-                    if(idNode->semantic_value.exprSemanticValue.constType == INTEGERC){
-                        size[(*dim)++] = idNode->semantic_value.exprSemanticValue.constEvalValue.iValue;
+                if(arrayDimension->semantic_value.exprSemanticValue.isConstEval){
+                    if(arrayDimension->semantic_value.exprSemanticValue.constType == INTEGERC){
+                        size[(*dim)++] = arrayDimension->semantic_value.exprSemanticValue.constEvalValue.iValue;
                     }
                     else{
                         // error : e.g. int a[3.2], b["abc"]
@@ -273,7 +278,7 @@ void getArrayDimensionAndSize(SymbolAttribute *symbolAttr, AST_NODE *idNode, int
                 }
                 break;
         }
-        idNode = idNode->rightSibling;
+        arrayDimension = arrayDimension->rightSibling;
     }
 }
 
@@ -415,7 +420,7 @@ void checkForStmt(AST_NODE* forNode)
     return;
 }
 
-void checkArrayReference(AST_NODE *arrayDimension, ArrayProperties property)
+void checkArrayReference(AST_NODE *arrayDimension, ArrayProperties property, int isLvalue)
 {
     int nowDimension = 0;
 
@@ -439,10 +444,16 @@ void checkArrayReference(AST_NODE *arrayDimension, ArrayProperties property)
         arrayDimension = arrayDimension->rightSibling;
         nowDimension++;
     }
+    printf("%d %d\n", nowDimension, property.dimension);
     if(nowDimension < property.dimension){
         // assign to an array address error    
         arrayDimension->parent->dataType = ERROR_TYPE;
-        printErrorMsg(arrayDimension, NOT_ASSIGNABLE);
+        if(isLvalue){
+            printErrorMsg(arrayDimension, NOT_ASSIGNABLE);
+        }
+        else if(arrayDimension->parent->parent->nodeType != PARAM_LIST_NODE){
+            printErrorMsg(arrayDimension, INCOMPATIBLE_ARRAY_DIMENSION);
+        }
     }
     else if(nowDimension > property.dimension){
         // dimension error
@@ -474,7 +485,7 @@ void checkAssignmentStmt(AST_NODE* assignmentNode)
     else if(leftNodeSymbol->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR){
         // check dimension
         ArrayProperties property = leftNodeSymbol->attribute->attr.typeDescriptor->properties.arrayProperties;
-        checkArrayReference(leftNode->child, property);
+        checkArrayReference(leftNode->child, property, 1);
     }
     // available, name is a scalar variable(nothing to do)
 
@@ -522,23 +533,43 @@ void checkParameterPassing(Parameter* formalParameter, AST_NODE* actualParameter
     while(formalParameter != NULL && actualParameter != NULL){
         if(formalParameter->type->kind == SCALAR_TYPE_DESCRIPTOR){
             char errMsg[ERR_MSG_LEN];
-            char *formalParamType = formalParameter->type->properties.dataType == INT_TYPE ? "int" : "float";
+            char *formalParamType = formalParameter->type->properties.dataType == INT_TYPE ? "\'int\'" : "\'float\'";
             switch(actualParameter->dataType){
                 case INT_TYPE: case FLOAT_TYPE:
                     // valid
                     break;
                 case CONST_STRING_TYPE:
                     // error : passing char* to a scalar
-                    sprintf(errMsg, "\'char *\' to \'%s\'", formalParamType);
+                    sprintf(errMsg, "\'char *\' to %s", formalParamType);
                     printErrorMsgSpecial(idNode, errMsg, PASS_ARRAY_TO_SCALAR);
                     break;
-                case INT_PTR_TYPE:
-                    // error : passing array type to scalar type
-                    break;
-                case FLOAT_PTR_TYPE:
-                    // error : passing array type to scalar type
-                    break;
-                default: // ERROR_TYPE
+                case ERROR_TYPE:
+                    if(actualParameter->nodeType == IDENTIFIER_NODE){
+                        SymbolTableEntry *idEntry = retrieveSymbol(actualParameter->semantic_value.identifierSemanticValue.identifierName);
+                        if(idEntry != NULL && idEntry->attribute->attributeKind == VARIABLE_ATTRIBUTE && \
+                            idEntry->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR){
+                            ArrayProperties arrayProperties = idEntry->attribute->attr.typeDescriptor->properties.arrayProperties;
+                            AST_NODE *arrayDimension = actualParameter->child;
+                            int cnt = 0;
+                            while(arrayDimension != NULL){
+                                cnt += 1;
+                                arrayDimension = arrayDimension->rightSibling;
+                            }
+                            if(cnt < arrayProperties.dimension){
+                                char *actualParameterType = arrayProperties.elementType == INT_TYPE ? "int (*)" : "float (*)";
+                                strcpy(errMsg, actualParameterType);
+                                while(cnt < arrayProperties.dimension){
+                                    char dimensionSize[ERR_MSG_LEN];
+                                    sprintf(dimensionSize, "[%d]", arrayProperties.sizeInEachDimension[cnt]);
+                                    strcat(errMsg, dimensionSize);
+                                    cnt += 1;
+                                }
+                                strcat(errMsg, " to ");
+                                strcat(errMsg, formalParamType);
+                                printErrorMsgSpecial(idNode, errMsg, PASS_ARRAY_TO_SCALAR);
+                            }
+                        }
+                    }
                     break;
             }
         }
@@ -764,7 +795,10 @@ void checkExprNode(AST_NODE* exprNode)
         // identifier is an array
         else if(identifier->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR){
             ArrayProperties property = identifier->attribute->attr.typeDescriptor->properties.arrayProperties;
-            checkArrayReference(exprNode->child, property);
+            checkArrayReference(exprNode->child, property, 0);
+            if(exprNode->dataType != ERROR_TYPE){
+                exprNode->dataType = property.elementType;
+            }
         }
         // identifier is a scalar
         else
