@@ -4,6 +4,7 @@
 #include "header.h"
 #include "symbolTable.h"
 #define ERR_MSG_LEN 128
+#define MSG_LEN 128
 
 DATA_TYPE getBiggerType(DATA_TYPE dataType1, DATA_TYPE dataType2);
 void checkProgramNode(AST_NODE *programNode);

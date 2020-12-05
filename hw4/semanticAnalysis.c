@@ -33,6 +33,7 @@ typedef enum ErrorMsgKind
     ARRAY_SUBSCRIPT_NOT_INT,
     PASS_ARRAY_TO_SCALAR,
     PASS_SCALAR_TO_ARRAY,
+    PASS_INCOMPATIBLE_DIMENSION,
     ARRAY_OUT_OF_BOUND
 } ErrorMsgKind;
 
@@ -63,6 +64,13 @@ void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKin
             break;
         case PASS_ARRAY_TO_SCALAR:
             printf("invalid conversion from %s\n", name2);
+            break;
+        case PASS_SCALAR_TO_ARRAY:
+            printf("invalid conversion from %s\n", name2);
+            break;
+        case PASS_INCOMPATIBLE_DIMENSION:
+            printf("invalid conversion from %s\n", name2);
+            break;
             /*
         default:
             printf("Unhandled case in void printErrorMsg(AST_NODE* node, ERROR_MSG_KIND* errorMsgKind)\n");
@@ -248,7 +256,6 @@ void getArrayDimensionAndSize(SymbolAttribute *symbolAttr, AST_NODE *idNode, int
         arrayDimension = arrayDimension->rightSibling;
     }
     while(arrayDimension != NULL){
-        printf("%d\n", arrayDimension->nodeType);
         switch(arrayDimension->nodeType){
             case CONST_VALUE_NODE:
                 switch(arrayDimension->semantic_value.const1->const_type){
@@ -420,14 +427,14 @@ void checkForStmt(AST_NODE* forNode)
     return;
 }
 
-void checkArrayReference(AST_NODE *arrayDimension, ArrayProperties property, int isLvalue)
+void checkArrayReference(AST_NODE *idNode, ArrayProperties property, int isLvalue)
 {
     int nowDimension = 0;
-
+    AST_NODE *arrayDimension = idNode->child;
     while(arrayDimension){
         // constant index
         if(arrayDimension->nodeType == CONST_VALUE_NODE && arrayDimension->semantic_value.const1->const_type == FLOATC){
-            arrayDimension->parent->dataType = ERROR_TYPE;
+            idNode->dataType = ERROR_TYPE;
             printErrorMsg(arrayDimension, ARRAY_SUBSCRIPT_NOT_INT);
         }
         // expression index
@@ -435,30 +442,35 @@ void checkArrayReference(AST_NODE *arrayDimension, ArrayProperties property, int
             checkExprNode(arrayDimension);
             if(arrayDimension->dataType == FLOAT_TYPE){
                 // index not an integer error
-                arrayDimension->parent->dataType = ERROR_TYPE;
+                idNode->dataType = ERROR_TYPE;
                 printErrorMsg(arrayDimension, ARRAY_SUBSCRIPT_NOT_INT);
             }
             else if(arrayDimension->dataType == ERROR_TYPE)
-                arrayDimension->parent->dataType = ERROR_TYPE;
+                idNode->dataType = ERROR_TYPE;
         }
         arrayDimension = arrayDimension->rightSibling;
         nowDimension++;
     }
-    printf("%d %d\n", nowDimension, property.dimension);
     if(nowDimension < property.dimension){
         // assign to an array address error    
-        arrayDimension->parent->dataType = ERROR_TYPE;
+        idNode->dataType = ERROR_TYPE;
+        if(idNode->parent->nodeType == NONEMPTY_RELOP_EXPR_LIST_NODE && \
+            idNode->parent->parent->nodeType == STMT_NODE && \
+            idNode->parent->parent->semantic_value.stmtSemanticValue.kind == FUNCTION_CALL_STMT){
+                // in parameter list
+                return;
+            }
         if(isLvalue){
-            printErrorMsg(arrayDimension, NOT_ASSIGNABLE);
+            printErrorMsg(idNode, NOT_ASSIGNABLE);
         }
-        else if(arrayDimension->parent->parent->nodeType != PARAM_LIST_NODE){
-            printErrorMsg(arrayDimension, INCOMPATIBLE_ARRAY_DIMENSION);
+        else {
+            printErrorMsg(idNode, INCOMPATIBLE_ARRAY_DIMENSION);
         }
     }
     else if(nowDimension > property.dimension){
         // dimension error
-        arrayDimension->parent->dataType = ERROR_TYPE;
-        printErrorMsg(arrayDimension, INCOMPATIBLE_ARRAY_DIMENSION);
+        idNode->dataType = ERROR_TYPE;
+        printErrorMsg(idNode, INCOMPATIBLE_ARRAY_DIMENSION);
     }
     return;
 }
@@ -485,7 +497,7 @@ void checkAssignmentStmt(AST_NODE* assignmentNode)
     else if(leftNodeSymbol->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR){
         // check dimension
         ArrayProperties property = leftNodeSymbol->attribute->attr.typeDescriptor->properties.arrayProperties;
-        checkArrayReference(leftNode->child, property, 1);
+        checkArrayReference(leftNode, property, 1);
     }
     // available, name is a scalar variable(nothing to do)
 
@@ -533,14 +545,14 @@ void checkParameterPassing(Parameter* formalParameter, AST_NODE* actualParameter
     while(formalParameter != NULL && actualParameter != NULL){
         if(formalParameter->type->kind == SCALAR_TYPE_DESCRIPTOR){
             char errMsg[ERR_MSG_LEN];
-            char *formalParamType = formalParameter->type->properties.dataType == INT_TYPE ? "\'int\'" : "\'float\'";
+            char *formalParameterType = formalParameter->type->properties.dataType == INT_TYPE ? "\'int\'" : "\'float\'";
             switch(actualParameter->dataType){
                 case INT_TYPE: case FLOAT_TYPE:
                     // valid
                     break;
                 case CONST_STRING_TYPE:
                     // error : passing char* to a scalar
-                    sprintf(errMsg, "\'char *\' to %s", formalParamType);
+                    sprintf(errMsg, "\'char *\' to %s", formalParameterType);
                     printErrorMsgSpecial(idNode, errMsg, PASS_ARRAY_TO_SCALAR);
                     break;
                 case ERROR_TYPE:
@@ -556,16 +568,17 @@ void checkParameterPassing(Parameter* formalParameter, AST_NODE* actualParameter
                                 arrayDimension = arrayDimension->rightSibling;
                             }
                             if(cnt < arrayProperties.dimension){
-                                char *actualParameterType = arrayProperties.elementType == INT_TYPE ? "int (*)" : "float (*)";
+                                char *actualParameterType = arrayProperties.elementType == INT_TYPE ? "\'int (*)" : "\'float (*)";
                                 strcpy(errMsg, actualParameterType);
+                                cnt += 1; // it's a pointer
                                 while(cnt < arrayProperties.dimension){
-                                    char dimensionSize[ERR_MSG_LEN];
+                                    char dimensionSize[MSG_LEN];
                                     sprintf(dimensionSize, "[%d]", arrayProperties.sizeInEachDimension[cnt]);
                                     strcat(errMsg, dimensionSize);
                                     cnt += 1;
                                 }
-                                strcat(errMsg, " to ");
-                                strcat(errMsg, formalParamType);
+                                strcat(errMsg, "\' to ");
+                                strcat(errMsg, formalParameterType);
                                 printErrorMsgSpecial(idNode, errMsg, PASS_ARRAY_TO_SCALAR);
                             }
                         }
@@ -574,16 +587,67 @@ void checkParameterPassing(Parameter* formalParameter, AST_NODE* actualParameter
             }
         }
         else{
+            char errMsg[ERR_MSG_LEN];
+            char formalParameterType[MSG_LEN];
+            ArrayProperties formalArrayProperties = formalParameter->type->properties.arrayProperties;
+            strcpy(formalParameterType, formalArrayProperties.elementType == INT_TYPE ? "\'int (*)" : "\'float(*)");
+            int formalDimCnt = 1;
+            while(formalDimCnt < formalArrayProperties.dimension){
+                char dimensionSize[MSG_LEN];
+                sprintf(dimensionSize, "[%d]", formalArrayProperties.sizeInEachDimension[formalDimCnt]);
+                strcat(formalParameterType, dimensionSize);
+                formalDimCnt += 1;
+            }
+            strcat(formalParameterType, "\'");
             switch (actualParameter->dataType){
-            case INT_TYPE: case FLOAT_TYPE:
-                // error : passing scalar to array
-                break;
-            case CONST_STRING_TYPE:
-                // erro : passing char* to int* or float*
-                break;
-            case INT_PTR_TYPE: case FLOAT_PTR_TYPE:
-                // check if dim matches
-                break;
+                case INT_TYPE:
+                    sprintf(errMsg, "\'int\' to %s", formalParameterType);
+                    printErrorMsgSpecial(idNode, errMsg, PASS_SCALAR_TO_ARRAY);
+                    break;
+                case FLOAT_TYPE:
+                    sprintf(errMsg, "\'float\' to %s", formalParameterType);
+                    printErrorMsgSpecial(idNode, errMsg, PASS_SCALAR_TO_ARRAY);
+                    break;
+                case CONST_STRING_TYPE:
+                    // erro : passing char* to int* or float*
+                    break;
+                case ERROR_TYPE:
+                    if(actualParameter->nodeType == IDENTIFIER_NODE){
+                        SymbolTableEntry *idEntry = retrieveSymbol(actualParameter->semantic_value.identifierSemanticValue.identifierName);
+                        if(idEntry != NULL && idEntry->attribute->attributeKind == VARIABLE_ATTRIBUTE && \
+                            idEntry->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR){
+                            ArrayProperties actualArrayProperties = idEntry->attribute->attr.typeDescriptor->properties.arrayProperties;
+                            AST_NODE *actualArrayDimension = actualParameter->child;
+                            int actualDimCnt = 0;
+                            while(actualArrayDimension != NULL){
+                                actualDimCnt += 1;
+                                actualArrayDimension = actualArrayDimension->rightSibling;
+                            }
+                            if(actualDimCnt < actualArrayProperties.dimension){
+                                char actualParameterType[MSG_LEN];
+                                strcpy(actualParameterType, actualArrayProperties.elementType == INT_TYPE ? "\'int (*)" : "\'float (*)");
+                                int dimNotMatch = 0;
+                                actualDimCnt += 1; // it's a pointer
+                                formalDimCnt = 1;
+                                while(actualDimCnt < actualArrayProperties.dimension){
+                                    char dimensionSize[MSG_LEN];
+                                    sprintf(dimensionSize, "[%d]", actualArrayProperties.sizeInEachDimension[actualDimCnt]);
+                                    strcat(actualParameterType, dimensionSize);
+                                    if(formalDimCnt < formalArrayProperties.dimension){
+                                        dimNotMatch = (actualArrayProperties.sizeInEachDimension[actualDimCnt] != formalArrayProperties.sizeInEachDimension[formalDimCnt]);
+                                    }
+                                    actualDimCnt += 1;
+                                    formalDimCnt += 1;
+                                }
+                                strcat(actualParameterType, "\'");
+                                if(dimNotMatch){
+                                    sprintf(errMsg, "%s to %s", actualParameterType, formalParameterType);
+                                    printErrorMsgSpecial(idNode, errMsg, PASS_INCOMPATIBLE_DIMENSION);
+                                }
+                            }
+                        }
+                    }
+                    break;
             }
         }
         formalParameter = formalParameter->next;
@@ -795,7 +859,7 @@ void checkExprNode(AST_NODE* exprNode)
         // identifier is an array
         else if(identifier->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR){
             ArrayProperties property = identifier->attribute->attr.typeDescriptor->properties.arrayProperties;
-            checkArrayReference(exprNode->child, property, 0);
+            checkArrayReference(exprNode, property, 0);
             if(exprNode->dataType != ERROR_TYPE){
                 exprNode->dataType = property.elementType;
             }
