@@ -252,7 +252,7 @@ void getArrayDimensionAndSize(SymbolAttribute *symbolAttr, AST_NODE *idNode, int
                         if(size[*dim - 1] < 0){
                             // error : negative size
                         }
-                        break;
+                       break;
                     default:
                         // error : e.g. int a[3.2], b["abc"]
                         break;
