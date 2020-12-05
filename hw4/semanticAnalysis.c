@@ -191,13 +191,34 @@ void declareType(AST_NODE *declarationNode){
             printErrorMsgSpecial(idNode, errMsg, SYMBOL_REDECLARE);
         }
         else{
+            SymbolEntry *typeEntry = retrieveSymbol(typeNode->semantic_value.identifierSemanticValue.identifierName);
+            AST_NODE *dimensionNode = idNode->child;
             SymbolAttribute *symbolAttr = (SymbolAttribute *)malloc(sizeof(SymbolAttribute));
             symbolAttr->attributeKind = TYPE_ATTRIBUTE;
             symbolAttr->attr.typeDescriptor = (TypeDescriptor *)malloc(sizeof(TypeDescriptor));
-            // ignore the ARRAY_TYPE
-            symbolAttr->attr.typeDescriptor->kind = SCALAR_TYPE_DESCRIPTOR;
-            symbolAttr->attr.typeDescriptor->properties.dataType = dataType;
-            enterSymbol(idName, symbolAttr);
+            // both typeNode and idNode are scalar type -> scalar
+            if(typeEntry->attribute->attr.typeDescriptor->kind == SCALAR_TYPE_DESCRIPTOR && dimensionNode == NULL){
+                symbolAttr->attr.typeDescriptor->kind = SCALAR_TYPE_DESCRIPTOR;
+                symbolAttr->attr.typeDescriptor->properties.dataType = dataType;
+                enterSymbol(idName, symbolAttr);
+            }
+            // typeNode is scalar type, idNode is array type -> array
+            else if(typeEntry->attribute->attr.typeDescriptor->kind == SCALAR_TYPE_DESCRIPTOR && dimensionNode == NULL){
+                symbolAttr->attr.typeDescriptor->kind = ARRAY_TYPE_DESCRIPTOR;
+                symbolAttr->attr.typeDescriptor->properties.arrayProperties.elementType = dataType;
+                int nowDimension = 0;
+                while(dimensionNode != NULL){
+                    switch(dimensionNode->nodeType){
+                        case CONST_VALUE_NODE:
+                            break;
+                        case EXPR_NODE:
+                            break;
+                        default:
+                            break;
+                    }
+                }
+                enterSymbol(idName, symbolAttr);
+            }
         }
         idNode = idNode->rightSibling;
     }
@@ -240,18 +261,20 @@ void declareVariable(AST_NODE *declarationNode){
 }
 
 void getArrayDimensionAndSize(SymbolAttribute *symbolAttr, AST_NODE *idNode, int ignoreFirstDimSize){
+    AST_NODE *arrayDimension = idNode->child;
     int *dim = &(symbolAttr->attr.typeDescriptor->properties.arrayProperties.dimension);
     int *size = symbolAttr->attr.typeDescriptor->properties.arrayProperties.sizeInEachDimension;
+    *dim = 0;
     if(ignoreFirstDimSize){
         size[(*dim)++] = -1;
-        idNode = idNode->rightSibling;
+        arrayDimension = arrayDimension->rightSibling;
     }
-    while(idNode != NULL){
-        switch(idNode->nodeType){
+    while(arrayDimension != NULL){
+        switch(arrayDimension->nodeType){
             case CONST_VALUE_NODE:
-                switch(idNode->semantic_value.const1->const_type){
+                switch(arrayDimension->semantic_value.const1->const_type){
                     case INTEGERC:
-                        size[*(dim)++] = idNode->semantic_value.const1->const_u.intval;
+                        size[*(dim)++] = arrayDimension->semantic_value.const1->const_u.intval;
                         if(size[*dim - 1] < 0){
                             // error : negative size
                         }
@@ -263,9 +286,9 @@ void getArrayDimensionAndSize(SymbolAttribute *symbolAttr, AST_NODE *idNode, int
                 break;
             // this case is fucking complicated, process later.
             case EXPR_NODE:
-                if(idNode->semantic_value.exprSemanticValue.isConstEval){
-                    if(idNode->semantic_value.exprSemanticValue.constType == INTEGERC){
-                        size[(*dim)++] = idNode->semantic_value.exprSemanticValue.constEvalValue.iValue;
+                if(arrayDimension->semantic_value.exprSemanticValue.isConstEval){
+                    if(arrayDimension->semantic_value.exprSemanticValue.constType == INTEGERC){
+                        size[(*dim)++] = arrayDimension->semantic_value.exprSemanticValue.constEvalValue.iValue;
                     }
                     else{
                         // error : e.g. int a[3.2], b["abc"]
@@ -276,7 +299,7 @@ void getArrayDimensionAndSize(SymbolAttribute *symbolAttr, AST_NODE *idNode, int
                 }
                 break;
         }
-        idNode = idNode->rightSibling;
+        arrayDimension = arrayDimension->rightSibling;
     }
 }
 
@@ -367,9 +390,13 @@ void checkTypeNode(AST_NODE* typeNode, DATA_TYPE *dataType)
         sprintf(errMsg, "\'%s\' is not a type", typeNode->semantic_value.identifierSemanticValue.identifierName);
         printErrorMsgSpecial(typeNode, errMsg, SYMBOL_IS_NOT_TYPE);
     }
-    else{
-        // ignore the ARRAY_TYPE ( which is defined as array e.g. typedef int II[2])
+    else if(typeEntry->attribute->attr.typeDescriptor->kind = SCALAR_TYPE_DESCRIPTOR){
+        // scalar type
         *dataType = typeEntry->attribute->attr.typeDescriptor->properties.dataType;
+    }
+    else{
+        // array type
+        *dataType = typeEntry->attribute->attr.typeDescriptor->properties.arrayProperties.elementType;
     }
 }
 
@@ -840,6 +867,9 @@ void checkConstValueNode(AST_NODE* constValueNode)
 
 void checkReturnStmt(AST_NODE* returnNode)
 {
+    AST_NODE *returnType = returnNode->parent->parent->leftmostSibling;
+    AST_NODE *returnItem = returnNode->child;
+
 }
 
 
