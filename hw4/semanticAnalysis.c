@@ -575,15 +575,9 @@ void checkParameterPassing(Parameter* formalParameter, AST_NODE* actualParameter
 int isRelativeOperation(AST_NODE *exprRelatedNode){
     EXPRSemanticValue val = exprRelatedNode->semantic_value.exprSemanticValue;
     if(val.kind == BINARY_OPERATION && \
-<<<<<<< HEAD
       (val.op.binaryOp == BINARY_OP_EQ || val.op.binaryOp == BINARY_OP_GE || val.op.binaryOp == BINARY_OP_LE || \
        val.op.binaryOp == BINARY_OP_NE || val.op.binaryOp == BINARY_OP_GT || val.op.binaryOp == BINARY_OP_LT || \
        val.op.binaryOp == BINARY_OP_OR || val.op.binaryOp == BINARY_OP_AND))
-=======
-      (val.op == BINARY_OP_EQ || val.op == BINARY_OP_GE || val.op == BINARY_OP_LE || \
-       val.op == BINARY_OP_NE || val.op == BINARY_OP_GT || val.op == BINARY_OP_LT || \
-       val.op == BINARY_OP_OR || val.op == BINARY_OP_AND))
->>>>>>> 94207ec698c446bcc307aef75aa69f97669d30c4
         return 1;
     else 
         return 0;
@@ -591,11 +585,6 @@ int isRelativeOperation(AST_NODE *exprRelatedNode){
 
 void checkExprRelatedNode(AST_NODE* exprRelatedNode)
 {
-<<<<<<< HEAD
-    if(exprRelatedNode->nodeType == CONST_VALUE_NODE){
-        // put data type in dataType field of AST_NODE
-        if(exprRelatedNode->semantic_value.const1->const_type == INTEGERC)
-=======
     AST_NODE *leftNode = exprRelatedNode->child;
     AST_NODE *rightNode = leftNode->rightSibling;
     if(isRelativeOperation(exprRelatedNode)){
@@ -603,7 +592,6 @@ void checkExprRelatedNode(AST_NODE* exprRelatedNode)
         checkExprRelatedNode(rightNode);
         // value of relative expression: 0 or 1(integer)
         if(leftNode->dataType != ERROR_TYPE && rightNode->dataType != ERROR_TYPE)
->>>>>>> 94207ec698c446bcc307aef75aa69f97669d30c4
             exprRelatedNode->dataType = INT_TYPE;
         else
             exprRelatedNode->dataType = ERROR_TYPE;
@@ -798,19 +786,8 @@ void checkExprNode(AST_NODE* exprNode)
         }
         // identifier is an array
         else if(identifier->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR){
-<<<<<<< HEAD
-            ArrayProperties property = identifier->attribute->attr.typeDescriptor->properties.arrayProperties;
-            checkArrayReference(exprRelatedNode->child, property);
-            exprRelatedNode->dataType = identifier->attribute->attr.typeDescriptor->properties.arrayProperties.elementType;
-            return;
-        }
-        else{
-            exprRelatedNode->dataType = identifier->attribute->attr.typeDescriptor->properties.dataType;
-            return;
-=======
             ArrayProperties property = exprNode->attribute->attr.typeDescriptor.properties.arrayProperties;
             checkArrayReference(exprNode->child, property);
->>>>>>> 94207ec698c446bcc307aef75aa69f97669d30c4
         }
         // identifier is a scalar
         else
@@ -896,7 +873,6 @@ void checkBlockNode(AST_NODE* blockNode)
 
 void checkStmtNode(AST_NODE* stmtNode)
 {
-<<<<<<< HEAD
     switch(stmtNode->nodeType){
         case BLOCK_NODE:
             openScope();
@@ -928,9 +904,7 @@ void checkStmtNode(AST_NODE* stmtNode)
             }
             break;
     }
-=======
 
->>>>>>> 94207ec698c446bcc307aef75aa69f97669d30c4
 }
 
 
