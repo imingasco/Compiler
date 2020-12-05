@@ -441,12 +441,12 @@ void checkArrayReference(AST_NODE *arrayDimension, ArrayProperties property)
     }
     if(nowDimension < property.dimension){
         // assign to an array address error    
-        arrayDimension->parent->nodeType = ERROR_TYPE;
+        arrayDimension->parent->dataType = ERROR_TYPE;
         printErrorMsg(arrayDimension, NOT_ASSIGNABLE);
     }
     else if(nowDimension > property.dimension){
         // dimension error
-        arrayDimension->parent->nodeType = ERROR_TYPE;
+        arrayDimension->parent->dataType = ERROR_TYPE;
         printErrorMsg(arrayDimension, INCOMPATIBLE_ARRAY_DIMENSION);
     }
     return;
