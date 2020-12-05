@@ -385,7 +385,7 @@ void checkWhileStmt(AST_NODE* whileNode)
 {
     AST_NODE *testExprRoot = whileNode->child;
     AST_NODE *stmtNode = testExprRoot->rightSibling;
-    checkExprRelatedNode(testExprRoot);
+    checkExprNode(testExprRoot);
     checkStmtNode(stmtNode);
 }
 
@@ -404,7 +404,7 @@ void checkForStmt(AST_NODE* forNode)
         initAssignExpr = initAssignExpr->rightSibling;
     }
     while(relopExpr){
-        checkExprRelatedNode(relopExpr);
+        checkExprNode(relopExpr);
         relopExpr = relopExpr->rightSibling;
     }
     while(updateAssignExpr){
@@ -441,12 +441,12 @@ void checkArrayReference(AST_NODE *arrayDimension, ArrayProperties property)
     }
     if(nowDimension < property.dimension){
         // assign to an array address error    
-        arrayDimension->parent->nodeType = ERROR_TYPE;
+        arrayDimension->parent->dataType = ERROR_TYPE;
         printErrorMsg(arrayDimension, NOT_ASSIGNABLE);
     }
     else if(nowDimension > property.dimension){
         // dimension error
-        arrayDimension->parent->nodeType = ERROR_TYPE;
+        arrayDimension->parent->dataType = ERROR_TYPE;
         printErrorMsg(arrayDimension, INCOMPATIBLE_ARRAY_DIMENSION);
     }
     return;
@@ -479,7 +479,7 @@ void checkAssignmentStmt(AST_NODE* assignmentNode)
     // available, name is a scalar variable(nothing to do)
 
     // check relop on RHS of assignment
-    checkExprRelatedNode(rightNode);
+    checkExprNode(rightNode);
     return;
 }
 
@@ -509,7 +509,7 @@ void checkFunctionCall(AST_NODE* functionCallNode)
         return;
     }
     while(paramNode != NULL){
-        checkExprRelatedNode(paramNode);
+        checkExprNode(paramNode);
         paramNode = paramNode->rightSibling;
     }
     paramNode = idNode->rightSibling->child;
@@ -583,23 +583,6 @@ int isRelativeOperation(AST_NODE *exprRelatedNode){
         return 0;
 }
 
-void checkExprRelatedNode(AST_NODE* exprRelatedNode)
-{
-    AST_NODE *leftNode = exprRelatedNode->child;
-    AST_NODE *rightNode = leftNode->rightSibling;
-    if(isRelativeOperation(exprRelatedNode)){
-        checkExprRelatedNode(leftNode);
-        checkExprRelatedNode(rightNode);
-        // value of relative expression: 0 or 1(integer)
-        if(leftNode->dataType != ERROR_TYPE && rightNode->dataType != ERROR_TYPE)
-            exprRelatedNode->dataType = INT_TYPE;
-        else
-            exprRelatedNode->dataType = ERROR_TYPE;
-    }
-    else
-        checkExprNode(exprRelatedNode);
-    return;
-}
 
 void getExprOrConstValue(AST_NODE* exprOrConstNode, int* iValue, double* fValue)
 {
@@ -793,8 +776,8 @@ void checkExprNode(AST_NODE* exprNode)
     AST_NODE *rightNode = leftNode->rightSibling;
     // relative operation, binary, e.g, a > 0, (a > 0 || b < 0)
     if(isRelativeOperation(exprNode)){
-        checkExprRelatedNode(leftNode);
-        checkExprRelatedNode(rightNode);
+        checkExprNode(leftNode);
+        checkExprNode(rightNode);
         // value of relative expression: 0 or 1(integer)
         if(leftNode->dataType == ERROR_TYPE || rightNode->dataType == ERROR_TYPE)
             exprNode->dataType = ERROR_TYPE;
@@ -803,7 +786,7 @@ void checkExprNode(AST_NODE* exprNode)
     }
     // unary operation
     else if(exprNode->semantic_value.exprSemanticValue.kind == UNARY_OPERATION){
-        checkExprRelatedNode(leftNode);
+        checkExprNode(leftNode);
         evaluateExprValue(exprNode);
     }
     // binary arithmetic operation, e.g, +, -, *, /
