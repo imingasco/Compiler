@@ -33,7 +33,7 @@ typedef enum ErrorMsgKind
     ARRAY_SUBSCRIPT_NOT_INT,
     PASS_ARRAY_TO_SCALAR,
     PASS_SCALAR_TO_ARRAY,
-    ARRAY_OUT_OF_BOUND
+    NOT_WRITABLE
 } ErrorMsgKind;
 
 void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKind)
@@ -85,6 +85,9 @@ void printErrorMsg(AST_NODE* node, ErrorMsgKind errorMsgKind)
             break;
         case ARRAY_SUBSCRIPT_NOT_INT:
             printf("array subscript is not an integer\n");
+            break;
+        case NOT_WRITABLE:
+            printf("argument of write() is neither identifier nor constant string nor function call nor expression of above\n");
             break;
         default:
             printf("Unhandled case in void printErrorMsg(AST_NODE* node, ERROR_MSG_KIND* errorMsgKind)\n");
@@ -486,10 +489,32 @@ void checkAssignmentStmt(AST_NODE* assignmentNode)
 
 void checkIfStmt(AST_NODE* ifNode)
 {
+    AST_NODE *ifTest = ifNode->child;
+    AST_NODE *stmtNode = ifTest->rightSibling;
+    checkExprNode(ifTest);
+    checkStmtNode(stmtNode);
 }
 
 void checkWriteFunction(AST_NODE* functionCallNode)
 {
+    AST_NODE *toWrite = functionCallNode->child->rightSibling->child;
+    // write a constant, should be string
+    if(toWrite->nodeType == CONST_VALUE_NODE && toWrite->semantic_value.const1->const_type != STRINGC)
+        printErrorMsg(functionCallNode, NOT_WRITABLE);
+    // write an identifier
+    else if(toWrite->nodeType == IDENTIFIER_NODE){
+        checkExprNode(toWrite);
+    // write an expression
+    else if(toWrite->nodeType == EXPR_NODE){
+        checkExprNode(toWrite);
+        // write an constant expression, invalid
+        if(toWrite->semantic_value.exprSemanticValue.isConstEval == 1)
+            printErrorMsg(functionCallNode, NOT_WRITABLE);
+    }
+    // write an output of function
+    else if(toWrite->nodeType == STMT_NODE && toWrite->semantic_value.stmtSemanticValue.kind == FUNCTION_CALL_STMT)
+        checkFunctionCall(toWrite);
+    return;
 }
 
 void checkFunctionCall(AST_NODE* functionCallNode)
