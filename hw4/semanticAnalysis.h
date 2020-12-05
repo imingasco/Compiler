@@ -28,7 +28,7 @@ void checkIfStmt(AST_NODE* ifNode);
 void checkWriteFunction(AST_NODE* functionCallNode);
 void checkFunctionCall(AST_NODE* functionCallNode);
 void checkExprRelatedNode(AST_NODE* exprRelatedNode);
-void checkParameterPassing(Parameter* formalParameter, AST_NODE* actualParameter);
+void checkParameterPassing(Parameter* formalParameter, AST_NODE* actualParameter, AST_NODE *idNode);
 void checkReturnStmt(AST_NODE* returnNode);
 void checkExprNode(AST_NODE* exprNode);
 void checkVariableLValue(AST_NODE* idNode);

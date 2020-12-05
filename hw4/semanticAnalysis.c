@@ -42,6 +42,12 @@ void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKin
     
     switch(errorMsgKind)
     {
+        case TOO_MANY_ARGUMENTS:
+            printf("too many arguments to function %s\n", name2);
+            break;
+        case TOO_FEW_ARGUMENTS:
+            printf("too few arguments to function %s\n", name2);
+            break;
         case SYMBOL_REDECLARE:
             printf("redeclaration of %s\n", name2);
             break;
@@ -470,12 +476,68 @@ void checkFunctionCall(AST_NODE* functionCallNode)
         functionCallNode->dataType = ERROR_TYPE;
         return;
     }
-    checkParameterPassing(idEntry->attribute->attr.functionSignature->parameterList, paramNode);
+    while(paramNode != NULL){
+        checkExprRelatedNode(paramNode);
+        paramNode = paramNode->rightSibling;
+    }
+    paramNode = idNode->rightSibling->child;
+    checkParameterPassing(idEntry->attribute->attr.functionSignature->parameterList, paramNode, idNode);
     functionCallNode->dataType = idEntry->attribute->attr.functionSignature->returnType;
 }
 
-void checkParameterPassing(Parameter* formalParameter, AST_NODE* actualParameter)
+void checkParameterPassing(Parameter* formalParameter, AST_NODE* actualParameter, AST_NODE *idNode)
 {
+    while(formalParameter != NULL && actualParameter != NULL){
+        if(formalParameter->type->kind == SCALAR_TYPE_DESCRIPTOR){
+            char errMsg[ERR_MSG_LEN];
+            char *formalParamType = formalParameter->type->properties.dataType == INT_TYPE ? "int" : "float";
+            switch(actualParameter->dataType){
+                case INT_TYPE: case FLOAT_TYPE:
+                    // valid
+                    break;
+                case CONST_STRING_TYPE:
+                    // error : passing char* to a scalar
+                    sprintf(errMsg, "\'char *\' to \'%s\'", formalParamType);
+                    printErrorMsgSpecial(idNode, errMsg, PASS_ARRAY_TO_SCALAR);
+                    break;
+                case INT_PTR_TYPE:
+                    // error : passing array type to scalar type
+                    break;
+                case FLOAT_PTR_TYPE:
+                    // error : passing array type to scalar type
+                    break;
+                default: // ERROR_TYPE
+                    break;
+            }
+        }
+        else{
+            switch (actualParameter->dataType){
+            case INT_TYPE: case FLOAT_TYPE:
+                // error : passing scalar to array
+                break;
+            case CONST_STRING_TYPE:
+                // erro : passing char* to int* or float*
+                break;
+            case INT_PTR_TYPE: case FLOAT_PTR_TYPE:
+                // check if dim matches
+                break;
+            }
+        }
+        formalParameter = formalParameter->next;
+        actualParameter = actualParameter->rightSibling;
+    }
+    if(formalParameter != NULL){
+        // error : too few arguments
+        char errMsg[ERR_MSG_LEN];
+        sprintf(errMsg, "\'%s\'", idNode->semantic_value.identifierSemanticValue.identifierName);
+        printErrorMsgSpecial(idNode, errMsg, TOO_FEW_ARGUMENTS);
+    }
+    if(actualParameter != NULL){
+        // error ; too many arguments
+        char errMsg[ERR_MSG_LEN];
+        sprintf(errMsg, "\'%s\'", idNode->semantic_value.identifierSemanticValue.identifierName);
+        printErrorMsgSpecial(idNode, errMsg, TOO_MANY_ARGUMENTS);
+    }
 }
 
 int isRelativeOperation(AST_NODE *exprRelatedNode){
