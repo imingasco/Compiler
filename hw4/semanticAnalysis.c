@@ -212,6 +212,8 @@ void declareType(AST_NODE *declarationNode){
                         case CONST_VALUE_NODE:
                             break;
                         case EXPR_NODE:
+                            checkExprNode(dimensionNode);
+                            if
                             break;
                         default:
                             break;
