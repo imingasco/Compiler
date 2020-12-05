@@ -667,6 +667,37 @@ void checkBlockNode(AST_NODE* blockNode)
 
 void checkStmtNode(AST_NODE* stmtNode)
 {
+    switch(stmtNode->nodeType){
+        case BLOCK_NODE:
+            openScope();
+            checkBlockNode(stmtNode);
+            closeScope();
+            break;
+        case NUL_NODE:
+            break;
+        default:
+            switch(stmtNode->semantic_value.stmtSemanticValue.kind){
+                case IF_STMT:
+                    checkIfStmt(stmtNode);
+                    break;
+                case WHILE_STMT:
+                    checkWhileStmt(stmtNode);
+                    break;
+                case FOR_STMT:
+                    checkForStmt(stmtNode);
+                    break;
+                case RETURN_STMT:
+                    checkReturnStmt(stmtNode);
+                    break;
+                case FUNCTION_CALL_STMT:
+                    checkFunctionCall(stmtNode);
+                    break;
+                case ASSIGN_STMT:
+                    checkAssignmentStmt(stmtNode);
+                    break;
+            }
+            break;
+    }
 }
 
 
