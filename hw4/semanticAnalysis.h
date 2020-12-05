@@ -34,7 +34,7 @@ void checkExprNode(AST_NODE* exprNode);
 void checkVariableLValue(AST_NODE* idNode);
 void checkVariableRValue(AST_NODE* idNode);
 void checkConstValueNode(AST_NODE* constValueNode);
-void getExprOrConstValue(AST_NODE* exprOrConstNode, int* iValue, float* fValue);
+void getExprOrConstValue(AST_NODE* exprOrConstNode, int* iValue, double* fValue);
 void evaluateExprValue(AST_NODE* exprNode);
 int  isRelativeOperation(AST_NODE* exprRelatedNode);
 void  checkArrayReference(AST_NODE* arrayReference, ArrayProperties property);

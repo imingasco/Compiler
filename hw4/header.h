@@ -110,7 +110,7 @@ typedef struct EXPRSemanticValue
     union
     {
         int iValue;
-        float fValue;
+        double fValue;
     } constEvalValue;
 
     union

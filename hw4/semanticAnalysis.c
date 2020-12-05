@@ -601,28 +601,22 @@ void checkExprRelatedNode(AST_NODE* exprRelatedNode)
     return;
 }
 
-void getExprOrConstValue(AST_NODE* exprOrConstNode, int* iValue, float* fValue)
+void getExprOrConstValue(AST_NODE* exprOrConstNode, int* iValue, double* fValue)
 {
-    int i;
-    float f;
     if(exprOrConstNode->nodeType == CONST_VALUE_NODE){
         if(exprOrConstNode->semantic_value.const1->const_type == INTEGERC){
-            i = exprOrConstNode->semantic_value.const1->const_u.intval;
-            iValue = &i;
+            iValue = &(exprOrConstNode->semantic_value.const1->const_u.intval);
         }
         else{
-            f = exprOrConstNode->semantic_value.const1->const_u.fval;
-            fValue = &f;
+            fValue = &(exprOrConstNode->semantic_value.const1->const_u.fval);
         }
     }
     else if(exprOrConstNode->semantic_value.exprSemanticValue.isConstEval == 1){
         if(exprOrConstNode->dataType == INT_TYPE){
-            i = exprOrConstNode->semantic_value.exprSemanticValue.constEvalValue.iValue;
-            iValue = &i;
+            iValue = &(exprOrConstNode->semantic_value.exprSemanticValue.constEvalValue.iValue);
         }
         else{
-            f = exprOrConstNode->semantic_value.exprSemanticValue.constEvalValue.fValue;
-            fValue = &f;
+            fValue = &(exprOrConstNode->semantic_value.exprSemanticValue.constEvalValue.fValue);
         }
     }
     return;
@@ -638,7 +632,7 @@ void evaluateExprValue(AST_NODE* exprNode)
     if(rightNode == NULL){
        if(leftNode->nodeType == CONST_VALUE_NODE || leftNode->semantic_value.exprSemanticValue.isConstEval == 1){
             int *livalue = NULL;
-            float *lfvalue = NULL;
+            double *lfvalue = NULL;
             exprNode->semantic_value.exprSemanticValue.isConstEval = 1;
             getExprOrConstValue(leftNode, livalue, lfvalue);
             if(livalue){
@@ -680,8 +674,8 @@ void evaluateExprValue(AST_NODE* exprNode)
             (rightNode->nodeType == CONST_VALUE_NODE || rightNode->semantic_value.exprSemanticValue.isConstEval == 1)){
         int *livalue = NULL;
         int *rivalue = NULL;
-        float *lfvalue = NULL;
-        float *rfvalue = NULL;
+        double *lfvalue = NULL;
+        double *rfvalue = NULL;
         exprNode->semantic_value.exprSemanticValue.isConstEval = 1;
         getExprOrConstValue(leftNode, livalue, lfvalue);
         getExprOrConstValue(rightNode, rivalue, rfvalue);
