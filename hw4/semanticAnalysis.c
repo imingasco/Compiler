@@ -77,6 +77,9 @@ void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKin
         case PASS_INCOMPATIBLE_DIMENSION:
             printf("invalid conversion from %s\n", name2);
             break;
+        case RETURN_ARRAY:
+            printf("return type %s is an array\n", name2);
+            break;
             /*
         default:
             printf("Unhandled case in void printErrorMsg(AST_NODE* node, ERROR_MSG_KIND* errorMsgKind)\n");
@@ -332,6 +335,13 @@ void declareFunction(AST_NODE* declarationNode){
     AST_NODE *blockNode = paramListNode->rightSibling;
     DATA_TYPE dataType;
     checkTypeNode(typeNode, &dataType);
+    char *typeName = typeNode->semantic_value.identifierSemanticValue.identifierName;
+    SymbolTableEntry *typeEntry = retrieveSymbol(typeName);
+    if(typeEntry->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR){
+        dataType = ERROR_TYPE;
+        typeNode->dataType = ERROR_TYPE;
+        printErrorMsgSpecial(declarationNode, typeName, RETURN_ARRAY);
+    }
     char *idName = idNode->semantic_value.identifierSemanticValue.identifierName;
     if(isDeclaredLocally(idName)){
         char errMsg[ERR_MSG_LEN];
@@ -900,6 +910,7 @@ void checkExprNode(AST_NODE* exprNode)
     else if(exprNode->nodeType == STMT_NODE && \
             exprNode->semantic_value.stmtSemanticValue.kind == FUNCTION_CALL_STMT){
         checkFunctionCall(exprNode);
+        if(exprNode->dataType == VOID_TYPE)
         return;
     }
     // identifier node
@@ -980,7 +991,8 @@ void checkReturnStmt(AST_NODE* returnNode)
 {
     AST_NODE *returnType = returnNode->parent->parent->leftmostSibling;
     AST_NODE *returnItem = returnNode->child;
-
+    checkExprNode(returnItem);
+    
 }
 
 
