@@ -349,7 +349,7 @@ void declareFunction(AST_NODE* declarationNode){
     checkTypeNode(typeNode, &dataType);
     char *typeName = typeNode->semantic_value.identifierSemanticValue.identifierName;
     SymbolTableEntry *typeEntry = retrieveSymbol(typeName);
-    if(typeEntry->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR){
+    if(typeEntry != NULL && typeEntry->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR){
         dataType = ERROR_TYPE;
         typeNode->dataType = ERROR_TYPE;
         printErrorMsgSpecial(declarationNode, typeName, RETURN_ARRAY);
@@ -516,6 +516,7 @@ void checkArrayReference(AST_NODE *idNode, ArrayProperties property, int isLvalu
     }
     if(nowDimension < property.dimension){
         // assign to an array address error    
+        idNode->dataType = ERROR_TYPE;
         if(idNode->parent->nodeType == NONEMPTY_RELOP_EXPR_LIST_NODE && \
            idNode->parent->parent->nodeType == STMT_NODE && \
            idNode->parent->parent->semantic_value.stmtSemanticValue.kind == FUNCTION_CALL_STMT){
@@ -523,7 +524,6 @@ void checkArrayReference(AST_NODE *idNode, ArrayProperties property, int isLvalu
             return;
         }
 
-        idNode->dataType = ERROR_TYPE;
         if(isLvalue){
             printErrorMsg(idNode, NOT_ASSIGNABLE);
         }
