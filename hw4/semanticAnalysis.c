@@ -227,7 +227,7 @@ void declareType(AST_NODE *declarationNode){
             else if(typeEntry == NULL && dimensionNode != NULL){
                 symbolAttr->attr.typeDescriptor->kind = ARRAY_TYPE_DESCRIPTOR;
                 symbolAttr->attr.typeDescriptor->properties.arrayProperties.elementType = ERROR_TYPE;
-                getArrayDimensionAndSize(idName, symbolAttr);
+                getArrayDimensionAndSize(symbolAttr, idNode, 0);
                 enterSymbol(idName, symbolAttr);
             }
             // both typeNode and idNode are scalar type -> scalar
@@ -249,6 +249,7 @@ void declareType(AST_NODE *declarationNode){
             }
             // typeNode is scalar type, idNode is array type -> array
             else if(typeEntry->attribute->attr.typeDescriptor->kind == SCALAR_TYPE_DESCRIPTOR && dimensionNode != NULL){
+                ArrayProperties *symbolProperty = &(symbolAttr->attr.typeDescriptor->properties.arrayProperties);
                 symbolAttr->attr.typeDescriptor->kind = ARRAY_TYPE_DESCRIPTOR;
                 symbolProperty->elementType = dataType;
                 getArrayDimensionAndSize(symbolAttr, idNode, 0);
@@ -441,7 +442,7 @@ void checkTypeNode(AST_NODE* typeNode, DATA_TYPE *dataType)
         printErrorMsgSpecial(typeNode, errMsg, SYMBOL_IS_NOT_TYPE);
         *dataType = ERROR_TYPE;
     }
-    else if(typeEntry->attribute->attr.typeDescriptor->kind = SCALAR_TYPE_DESCRIPTOR){
+    else if(typeEntry->attribute->attr.typeDescriptor->kind == SCALAR_TYPE_DESCRIPTOR){
         // scalar type
         *dataType = typeEntry->attribute->attr.typeDescriptor->properties.dataType;
     }
