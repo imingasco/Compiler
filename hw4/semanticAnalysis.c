@@ -22,6 +22,7 @@ typedef enum ErrorMsgKind
     TOO_FEW_ARGUMENTS,
     TOO_MANY_ARGUMENTS,
     RETURN_TYPE_UNMATCH,
+    RETURN_IN_VOID_FUNCTION,
     INCOMPATIBLE_ARRAY_DIMENSION,
     NOT_ASSIGNABLE,
     NOT_ARRAY,
@@ -79,6 +80,9 @@ void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKin
             break;
         case RETURN_ARRAY:
             printf("return type %s is an array\n", name2);
+            break;
+        case RETURN_IN_VOID_FUNCTION:
+            printf("return value in void function \'%s\'\n", name2);
             break;
             /*
         default:
@@ -1010,10 +1014,24 @@ void checkConstValueNode(AST_NODE* constValueNode)
 
 void checkReturnStmt(AST_NODE* returnNode)
 {
-    AST_NODE *returnType = returnNode->parent->parent->leftmostSibling;
     AST_NODE *returnItem = returnNode->child;
-    checkExprNode(returnItem);
-    
+    AST_NODE *parentNode = returnNode->parent;
+    while((parentNode->nodeType != DECLARATION_NODE) || (parentNode->semantic_value.declSemanticValue.kind != FUNCTION_DECL)){
+        parentNode = parentNode->parent;
+    }
+    AST_NODE *returnType = parentNode->child;
+    char *functionName = returnType->rightSibling->semantic_value.identifierSemanticValue.identifierName;
+    if(returnItem->nodeType == NUL_NODE){
+        if(strcmp(returnType->semantic_value.identifierSemanticValue.identifierName, "void") != 0){
+            // warning : return nothing in non-void function
+        }
+    }
+    else{
+        checkExprNode(returnItem);
+        if(strcmp(returnType->semantic_value.identifierSemanticValue.identifierName, "void") == 0){
+            printErrorMsgSpecial(returnNode, functionName, RETURN_IN_VOID_FUNCTION);
+        }
+    }
 }
 
 
@@ -1060,13 +1078,19 @@ void checkStmtNode(AST_NODE* stmtNode)
         default:
             switch(stmtNode->semantic_value.stmtSemanticValue.kind){
                 case IF_STMT:
+                    openScope();
                     checkIfStmt(stmtNode);
+                    closeScope();
                     break;
                 case WHILE_STMT:
+                    openScope();
                     checkWhileStmt(stmtNode);
+                    closeScope();
                     break;
                 case FOR_STMT:
+                    openScope();
                     checkForStmt(stmtNode);
+                    closeScope();
                     break;
                 case RETURN_STMT:
                     checkReturnStmt(stmtNode);
