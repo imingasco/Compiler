@@ -213,7 +213,7 @@ void declareType(AST_NODE *declarationNode){
             printErrorMsgSpecial(idNode, errMsg, SYMBOL_REDECLARE);
         }
         else{
-            SymbolEntry *typeEntry = retrieveSymbol(typeNode->semantic_value.identifierSemanticValue.identifierName);
+            SymbolTableEntry *typeEntry = retrieveSymbol(typeNode->semantic_value.identifierSemanticValue.identifierName);
             AST_NODE *dimensionNode = idNode->child;
             SymbolAttribute *symbolAttr = (SymbolAttribute *)malloc(sizeof(SymbolAttribute));
             symbolAttr->attributeKind = TYPE_ATTRIBUTE;
@@ -303,18 +303,18 @@ void getArrayDimensionAndSize(SymbolAttribute *symbolAttr, AST_NODE *idNode, int
         switch(arrayDimension->nodeType){
             case CONST_VALUE_NODE:
                 if(arrayDimension->semantic_value.const1->const_type != INTEGERC)
-                    printErrorMsgSpecial(declarationNode, name, ARRAY_SIZE_NOT_INT);
+                    printErrorMsgSpecial(idNode, name, ARRAY_SIZE_NOT_INT);
                 else if(arrayDimension->semantic_value.const1->const_u.intval < 0)
-                    printErrorMsgSpecial(declarationNode, name, ARRAY_SIZE_NEGATIVE);
+                    printErrorMsgSpecial(idNode, name, ARRAY_SIZE_NEGATIVE);
                 else
                     *(size + nowDim) = arrayDimension->semantic_value.const1->const_u.intval;
                 break;
             case EXPR_NODE:
                 checkExprNode(arrayDimension);
                 if(arrayDimension->dataType == FLOAT_TYPE)
-                    printErrorMsg(declarationNode, name, ARRAY_SIZE_NOT_INT);
+                    printErrorMsgSpecial(idNode, name, ARRAY_SIZE_NOT_INT);
                 else if(arrayDimension->semantic_value.exprSemanticValue.constEvalValue.iValue < 0)
-                    printErrorMsgSpecial(declarationNode, name, ARRAY_SIZE_NEGATIVE);
+                    printErrorMsgSpecial(idNode, name, ARRAY_SIZE_NEGATIVE);
                 else
                     *(size + nowDim) = arrayDimension->semantic_value.exprSemanticValue.constEvalValue.iValue;
                 break;
@@ -523,7 +523,7 @@ void checkArrayReference(AST_NODE *idNode, ArrayProperties property, int isLvalu
         printErrorMsg(idNode, INCOMPATIBLE_ARRAY_DIMENSION);
     }
     else
-        idNode->dataType = property.dataType;
+        idNode->dataType = property.elementType;
     return;
 }
 
@@ -574,7 +574,7 @@ void checkWriteFunction(AST_NODE* functionCallNode)
     if(toWrite->nodeType == CONST_VALUE_NODE && toWrite->semantic_value.const1->const_type != STRINGC)
         printErrorMsg(functionCallNode, NOT_WRITABLE);
     // write an identifier
-    else if(toWrite->nodeType == IDENTIFIER_NODE){
+    else if(toWrite->nodeType == IDENTIFIER_NODE)
         checkExprNode(toWrite);
     // write an expression
     else if(toWrite->nodeType == EXPR_NODE){
