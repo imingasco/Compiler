@@ -218,6 +218,18 @@ void declareType(AST_NODE *declarationNode){
             SymbolAttribute *symbolAttr = (SymbolAttribute *)malloc(sizeof(SymbolAttribute));
             symbolAttr->attributeKind = TYPE_ATTRIBUTE;
             symbolAttr->attr.typeDescriptor = (TypeDescriptor *)malloc(sizeof(TypeDescriptor));
+            // type is not declared
+            if(typeEntry == NULL && dimensionNode == NULL){
+                symbolAttr->attr.typeDescriptor->kind = SCALAR_TYPE_DESCRIPTOR;
+                symbolAttr->attr.typeDescriptor->properties.dataType = ERROR_TYPE;
+                enterSymbol(idName, symbolAttr);
+            }
+            else if(typeEntry == NULL && dimensionNode != NULL){
+                symbolAttr->attr.typeDescriptor->kind = ARRAY_TYPE_DESCRIPTOR;
+                symbolAttr->attr.typeDescriptor->properties.arrayProperties.elementType = ERROR_TYPE;
+                getArrayDimensionAndSize(idName, symbolAttr);
+                enterSymbol(idName, symbolAttr);
+            }
 
             ArrayProperties *symbolProperty = &(symbolAttr->attr.typeDescriptor->properties.arrayProperties);
             ArrayProperties *typeProperty = &(typeEntry->attribute->attr.typeDescriptor->properties.arrayProperties);
@@ -421,6 +433,7 @@ void checkTypeNode(AST_NODE* typeNode, DATA_TYPE *dataType)
         char errMsg[ERR_MSG_LEN];
         sprintf(errMsg, "\'%s\' is not a type", typeNode->semantic_value.identifierSemanticValue.identifierName);
         printErrorMsgSpecial(typeNode, errMsg, SYMBOL_IS_NOT_TYPE);
+        *dataType = ERROR_TYPE;
     }
     else if(typeEntry->attribute->attr.typeDescriptor->kind = SCALAR_TYPE_DESCRIPTOR){
         // scalar type
@@ -503,13 +516,14 @@ void checkArrayReference(AST_NODE *idNode, ArrayProperties property, int isLvalu
     }
     if(nowDimension < property.dimension){
         // assign to an array address error    
-        idNode->dataType = ERROR_TYPE;
         if(idNode->parent->nodeType == NONEMPTY_RELOP_EXPR_LIST_NODE && \
-            idNode->parent->parent->nodeType == STMT_NODE && \
-            idNode->parent->parent->semantic_value.stmtSemanticValue.kind == FUNCTION_CALL_STMT){
-                // in parameter list
-                return;
-            }
+           idNode->parent->parent->nodeType == STMT_NODE && \
+           idNode->parent->parent->semantic_value.stmtSemanticValue.kind == FUNCTION_CALL_STMT){
+            // in parameter list
+            return;
+        }
+
+        idNode->dataType = ERROR_TYPE;
         if(isLvalue){
             printErrorMsg(idNode, NOT_ASSIGNABLE);
         }
