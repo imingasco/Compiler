@@ -312,6 +312,11 @@ void getArrayDimensionAndSize(SymbolAttribute *symbolAttr, AST_NODE *idNode, int
     AST_NODE *arrayDimension = idNode->child;
     int *size = symbolAttr->attr.typeDescriptor->properties.arrayProperties.sizeInEachDimension;
     int nowDim = 0;
+    if(ignoreFirstDimSize){
+        nowDim += 1;
+        arrayDimension = arrayDimension->rightSibling;
+        size[0] = -1;
+    }
     while(arrayDimension != NULL){
         switch(arrayDimension->nodeType){
             case CONST_VALUE_NODE:
@@ -320,7 +325,7 @@ void getArrayDimensionAndSize(SymbolAttribute *symbolAttr, AST_NODE *idNode, int
                 else if(arrayDimension->semantic_value.const1->const_u.intval < 0)
                     printErrorMsgSpecial(idNode, name, ARRAY_SIZE_NEGATIVE);
                 else
-                    *(size + nowDim) = arrayDimension->semantic_value.const1->const_u.intval;
+                    size[nowDim] = arrayDimension->semantic_value.const1->const_u.intval;
                 break;
             case EXPR_NODE:
                 checkExprNode(arrayDimension);
@@ -329,7 +334,7 @@ void getArrayDimensionAndSize(SymbolAttribute *symbolAttr, AST_NODE *idNode, int
                 else if(arrayDimension->semantic_value.exprSemanticValue.constEvalValue.iValue < 0)
                     printErrorMsgSpecial(idNode, name, ARRAY_SIZE_NEGATIVE);
                 else
-                    *(size + nowDim) = arrayDimension->semantic_value.exprSemanticValue.constEvalValue.iValue;
+                    size[nowDim] = arrayDimension->semantic_value.exprSemanticValue.constEvalValue.iValue;
                 break;
             default:
                 break;
