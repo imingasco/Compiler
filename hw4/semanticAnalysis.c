@@ -39,7 +39,6 @@ typedef enum ErrorMsgKind
     NOT_WRITABLE,
     PASS_INCOMPATIBLE_DIMENSION,
     INVALID_OPERAND
-
 } ErrorMsgKind;
 
 void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKind)
@@ -127,6 +126,9 @@ void printErrorMsg(AST_NODE* node, ErrorMsgKind errorMsgKind)
             break;
         case TYPEDEF_VOID_ARRAY:
             printf("array has incomplete element type \'void\'\n");
+            break;
+        case TRY_TO_INIT_ARRAY:
+            printf("initializing an array is not allowed\n");
             break;
         default:
             printf("Unhandled case in void printErrorMsg(AST_NODE* node, ERROR_MSG_KIND* errorMsgKind)\n");
@@ -230,28 +232,26 @@ void declareType(AST_NODE *declarationNode){
             printErrorMsgSpecial(idNode, errMsg, SYMBOL_REDECLARE);
         }
         else{
-            SymbolTableEntry *typeEntry = retrieveSymbol(typeNode->semantic_value.identifierSemanticValue.identifierName);
             AST_NODE *dimensionNode = idNode->child;
+            SymbolTableEntry *typeEntry = typeNode->semantic_value.identifierSemanticValue.symbolTableEntry;
             SymbolAttribute *symbolAttr = (SymbolAttribute *)malloc(sizeof(SymbolAttribute));
             symbolAttr->attributeKind = TYPE_ATTRIBUTE;
             symbolAttr->attr.typeDescriptor = (TypeDescriptor *)malloc(sizeof(TypeDescriptor));
-            // type is not declared
+            // type is not declared, idNode is scalar type -> scalar
             if(typeEntry == NULL && dimensionNode == NULL){
                 symbolAttr->attr.typeDescriptor->kind = SCALAR_TYPE_DESCRIPTOR;
                 symbolAttr->attr.typeDescriptor->properties.dataType = ERROR_TYPE;
-                enterSymbol(idName, symbolAttr);
             }
+            // type is not declared, idNode is array type -> array
             else if(typeEntry == NULL && dimensionNode != NULL){
                 symbolAttr->attr.typeDescriptor->kind = ARRAY_TYPE_DESCRIPTOR;
                 symbolAttr->attr.typeDescriptor->properties.arrayProperties.elementType = ERROR_TYPE;
                 getArrayDimensionAndSize(symbolAttr, idNode, 0);
-                enterSymbol(idName, symbolAttr);
             }
             // both typeNode and idNode are scalar type -> scalar
-            else if(typeEntry->attribute->attr.typeDescriptor->kind == SCALAR_TYPE_DESCRIPTOR && dimensionNode == NULL){
+            if((typeEntry == NULL || typeEntry->attribute->attr.typeDescriptor->kind == SCALAR_TYPE_DESCRIPTOR) && dimensionNode == NULL){
                 symbolAttr->attr.typeDescriptor->kind = SCALAR_TYPE_DESCRIPTOR;
                 symbolAttr->attr.typeDescriptor->properties.dataType = dataType;
-                enterSymbol(idName, symbolAttr);
             }
             // typeNode is array type, idNode is scalar type -> array
             else if(typeEntry->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR && dimensionNode == NULL){
@@ -262,7 +262,6 @@ void declareType(AST_NODE *declarationNode){
                 symbolProperty->dimension = typeProperty->dimension;
                 for(int i = 0; i < typeProperty->dimension; i++)
                     symbolProperty->sizeInEachDimension[i] = typeProperty->sizeInEachDimension[i];
-                enterSymbol(idName, symbolAttr);
             }
             // typeNode is scalar type, idNode is array type -> array
             else if(typeEntry->attribute->attr.typeDescriptor->kind == SCALAR_TYPE_DESCRIPTOR && dimensionNode != NULL){
@@ -272,12 +271,10 @@ void declareType(AST_NODE *declarationNode){
                     printErrorMsg(declarationNode, TYPEDEF_VOID_ARRAY);
                     symbolProperty->elementType = ERROR_TYPE;
                 }
-                else{
+                else
                     symbolProperty->elementType = dataType;
-                }
                 symbolAttr->attr.typeDescriptor->kind = ARRAY_TYPE_DESCRIPTOR;
                 getArrayDimensionAndSize(symbolAttr, idNode, 0);
-                enterSymbol(idName, symbolAttr);
             }
             // typeNode is array type, idNode is array type -> array
             else{
@@ -289,8 +286,9 @@ void declareType(AST_NODE *declarationNode){
                 for(int i = 0; i < typeProperty->dimension; i++)
                     symbolProperty->sizeInEachDimension[symbolProperty->dimension + i] = typeProperty->sizeInEachDimension[i];
                 symbolProperty->dimension += typeProperty->dimension;
-                enterSymbol(idName, symbolAttr);
+                idNode->semantic_value.identifierSemanticValue.symbolTableEntry = enterSymbol(idName, symbolAttr);
             }
+            idNode->semantic_value.identifierSemanticValue.symbolTableEntry = enterSymbol(idName, symbolAttr);
         }
         idNode = idNode->rightSibling;
     }
@@ -321,18 +319,56 @@ void declareVariable(AST_NODE *declarationNode){
             SymbolAttribute *symbolAttr = (SymbolAttribute *)malloc(sizeof(SymbolAttribute));
             symbolAttr->attributeKind = VARIABLE_ATTRIBUTE;
             symbolAttr->attr.typeDescriptor = (TypeDescriptor *)malloc(sizeof(TypeDescriptor));
-            switch (idNode->semantic_value.identifierSemanticValue.kind){
-                case NORMAL_ID:
-                    symbolAttr->attr.typeDescriptor->kind = SCALAR_TYPE_DESCRIPTOR;
-                    symbolAttr->attr.typeDescriptor->properties.dataType = dataType;
-                    break;
-                case ARRAY_ID:
-                    symbolAttr->attr.typeDescriptor->kind = ARRAY_TYPE_DESCRIPTOR;
-                    symbolAttr->attr.typeDescriptor->properties.arrayProperties.elementType = dataType;
-                    getArrayDimensionAndSize(symbolAttr, idNode, 0);
-                    break;
-                case WITH_INIT_ID:
-                    break;
+            // scalar type or error type
+            if(dataType == ERROR_TYPE || typeEntry->attribute->attr.typeDescriptor->kind == SCALAR_TYPE_DESCRIPTOR){
+                switch (idNode->semantic_value.identifierSemanticValue.kind){
+                    case NORMAL_ID:
+                        symbolAttr->attr.typeDescriptor->kind = SCALAR_TYPE_DESCRIPTOR;
+                        symbolAttr->attr.typeDescriptor->properties.dataType = dataType;
+                        break;
+                    case ARRAY_ID:
+                        symbolAttr->attr.typeDescriptor->kind = ARRAY_TYPE_DESCRIPTOR;
+                        symbolAttr->attr.typeDescriptor->properties.arrayProperties.elementType = dataType;
+                        getArrayDimensionAndSize(symbolAttr, idNode, 0);
+                        break;
+                    case WITH_INIT_ID:
+                        symbolAttr->attr.typeDescriptor->kind = SCALAR_TYPE_DESCRIPTOR;
+                        symbolAttr->attr.typeDescriptor->properties.dataType = dataType;
+                        checkExprNode(idNode->child);
+                        break;
+                }
+            }
+            // array type
+            else{
+                ArrayProperties *symbolProperty = &(symbolAttr->attr.typeDescriptor->properties.arrayProperties);
+                ArrayProperties *typeProperty = &(typeEntry->attribute->attr.typeDescriptor->properties.arrayProperties);
+                switch (idNode->semantic_value.identifierSemanticValue.kind){
+                    case NORMAL_ID:
+                        symbolAttr->attr.typeDescriptor->kind = ARRAY_TYPE_DESCRIPTOR;
+                        symbolProperty->elementType = dataType;
+                        for(int i = 0; i < typeProperty->dimension; i++)
+                            symbolProperty->sizeInEachDimension[i] = typeProperty->sizeInEachDimension[i];
+                        symbolProperty->dimension = typeProperty->dimension;
+                        break;
+                    case ARRAY_ID:
+                        symbolAttr->attr.typeDescriptor->kind = ARRAY_TYPE_DESCRIPTOR;
+                        symbolProperty->elementType = dataType;
+                        getArrayDimensionAndSize(symbolAttr, idNode, 0);
+                        for(int i = 0; i < typeProperty->dimension; i++)
+                            symbolProperty->sizeInEachDimension[symbolProperty->dimension + i] = typeProperty->sizeInEachDimension[i];
+                        symbolProperty->dimension += typeProperty->dimension;
+                        break;
+                    case WITH_INIT_ID:
+                        printErrorMsg(declarationNode, TRY_TO_INIT_ARRAY);
+                        symbolAttr->attr.typeDescriptor->kind = ARRAY_TYPE_DESCRIPTOR;
+                        symbolProperty->elementType = dataType;
+                        getArrayDimensionAndSize(symbolAttr, idNode, 0);
+                        for(int i = 0; i < typeProperty->dimension; i++)
+                            symbolProperty->sizeInEachDimension[symbolProperty->dimension + i] = typeProperty->sizeInEachDimension[i];
+                        symbolProperty->dimension += typeProperty->dimension;
+                        checkExprNode(idNode->child);
+                        break;
+                }
             }
             idNode->semantic_value.identifierSemanticValue.symbolTableEntry = enterSymbol(idName, symbolAttr);
         }
@@ -394,11 +430,13 @@ void declareFunction(AST_NODE* declarationNode){
     AST_NODE *blockNode = paramListNode->rightSibling;
     DATA_TYPE dataType;
     checkTypeNode(typeNode, &dataType);
+    /*
     char *typeName = typeNode->semantic_value.identifierSemanticValue.identifierName;
     SymbolTableEntry *typeEntry = retrieveSymbol(typeName);
+    */
+    SymbolTableEntry *typeEntry = typeNode->semantic_value.identifierSemanticValue.symbolTableEntry;
     if(typeEntry != NULL && typeEntry->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR){
         dataType = ERROR_TYPE;
-        typeNode->dataType = ERROR_TYPE;
         printErrorMsgSpecial(declarationNode, typeName, RETURN_ARRAY);
     }
     char *idName = idNode->semantic_value.identifierSemanticValue.identifierName;
@@ -417,7 +455,7 @@ void declareFunction(AST_NODE* declarationNode){
         symbolAttr->attr.functionSignature->parameterList = NULL;
         // enter function symbol first
         // construct the paramList in funcSignature and declare param at the same time
-        enterSymbol(idName, symbolAttr);
+        idNode->semantic_value.identifierSemanticValue.symbolTableEntry = enterSymbol(idName, symbolAttr);
         openScope();
         declareFunctionParam(paramListNode, symbolAttr->attr.functionSignature);
         // error : check if function is legal ( e.g. illegal paramList)
@@ -430,6 +468,12 @@ void declareFunctionParam(AST_NODE *paramListNode, FunctionSignature *functionSi
     Parameter **paramListTail = &(functionSignature->parameterList);
     AST_NODE *paramNode = paramListNode->child;
     while(paramNode != NULL){
+        AST_NODE *typeNode = paramNode->child;
+        AST_NODE *idNode = typeNode->rightSibling;
+        DATA_TYPE dataType;
+        checkTypeNode(typeNode, &dataType);
+        declareVariable(paramNode);
+        /*
         AST_NODE *typeNode = paramNode->child;
         AST_NODE *idNode = typeNode->rightSibling;
         char *idName = idNode->semantic_value.identifierSemanticValue.identifierName;
@@ -458,9 +502,11 @@ void declareFunctionParam(AST_NODE *paramListNode, FunctionSignature *functionSi
             }
             enterSymbol(idName, symbolAttr);
         }
+        */
         // construct paramList
         if(dataType != ERROR_TYPE){
-            SymbolTableEntry *entry = retrieveSymbol(idName);
+            // SymbolTableEntry *entry = retrieveSymbol(idName);
+            SymbolTableEntry *entry = paramNode->child->rightSibling->semantic_value.identifierSemanticValue.symbolTableEntry;
             functionSignature->parametersCount++;
             *paramListTail = (Parameter *)malloc(sizeof(Parameter));
             (*paramListTail)->parameterName = entry->name;
@@ -496,12 +542,12 @@ void checkTypeNode(AST_NODE* typeNode, DATA_TYPE *dataType)
     }
 }
 
-
+/*
 void declareIdList(AST_NODE* declarationNode, SymbolAttributeKind isVariableOrTypeAttribute, int ignoreArrayFirstDimSize)
 {
 }
 
-/*
+
 void checkAssignOrExpr(AST_NODE* assignOrExprRelatedNode)
 {
 }
@@ -547,7 +593,7 @@ void checkArrayReference(AST_NODE *idNode, ArrayProperties property, int isLvalu
     AST_NODE *arrayDimension = idNode->child;
     while(arrayDimension){
         // constant index
-        if(arrayDimension->nodeType == CONST_VALUE_NODE && arrayDimension->semantic_value.const1->const_type == FLOATC){
+        if(arrayDimension->nodeType == CONST_VALUE_NODE && arrayDimension->semantic_value.const1->const_type != INTEGERC){
             idNode->dataType = ERROR_TYPE;
             printErrorMsg(arrayDimension, ARRAY_SUBSCRIPT_NOT_INT);
         }
@@ -600,7 +646,6 @@ void checkAssignmentStmt(AST_NODE* assignmentNode)
     // check variable is available at this scope
     char *variableName = leftNode->semantic_value.identifierSemanticValue.identifierName;
     SymbolTableEntry *leftNodeSymbol = retrieveSymbol(variableName);
-    DATA_TYPE leftType;
 
     // unavailable, error
     if(leftNodeSymbol == NULL){
@@ -612,7 +657,7 @@ void checkAssignmentStmt(AST_NODE* assignmentNode)
         printErrorMsgSpecial(leftNode, variableName, IS_FUNCTION_NOT_VARIABLE);
         leftNode->dataType = ERROR_TYPE;
     }
-    // available, name is typeder
+    // available, name is typedef
     else if(leftNodeSymbol->attribute->attributeKind == TYPE_ATTRIBUTE){
         printErrorMsgSpecial(leftNode, variableName, IS_TYPE_NOT_VARIABLE);
         leftNode->dataType = ERROR_TYPE;
@@ -623,7 +668,10 @@ void checkAssignmentStmt(AST_NODE* assignmentNode)
         ArrayProperties property = leftNodeSymbol->attribute->attr.typeDescriptor->properties.arrayProperties;
         checkArrayReference(leftNode, property, 1);
     }
-    // available, name is a scalar variable(nothing to do)
+    // available, name is a scalar
+    else{
+        leftNode->dataType = leftNodeSymbol->attribute->attr.typeDescriptor->properties.dataType;
+    }
 
     // check relop on RHS of assignment
     checkExprNode(rightNode);
@@ -632,7 +680,7 @@ void checkAssignmentStmt(AST_NODE* assignmentNode)
     if(leftNode->dataType == ERROR_TYPE || rightNode->dataType == ERROR_TYPE)
         assignmentNode->dataType = ERROR_TYPE;
     else
-        assignmentNode->dataType = getBiggerType(leftNode->dataType, rightNode->dataType);
+        assignmentNode->dataType = leftNode->dataType;
     return;
 }
 
@@ -647,23 +695,25 @@ void checkIfStmt(AST_NODE* ifNode)
 
 void checkWriteFunction(AST_NODE* functionCallNode)
 {
+    // check if there is one argument
     AST_NODE *toWrite = functionCallNode->child->rightSibling->child;
-    // write a constant, should be string
-    if(toWrite->nodeType == CONST_VALUE_NODE && toWrite->semantic_value.const1->const_type != STRINGC)
-        printErrorMsg(functionCallNode, NOT_WRITABLE);
-    // write an identifier
-    else if(toWrite->nodeType == IDENTIFIER_NODE)
-        checkExprNode(toWrite);
-    // write an expression
-    else if(toWrite->nodeType == EXPR_NODE){
-        checkExprNode(toWrite);
-        // write an constant expression, invalid
-        if(toWrite->semantic_value.exprSemanticValue.isConstEval == 1)
-            printErrorMsg(functionCallNode, NOT_WRITABLE);
+    if(toWrite == NULL){
+        printErrorMsgSpecial(functionCallNode, "write", TOO_FEW_ARGUMENTS);
+        return;
     }
-    // write an output of function
-    else if(toWrite->nodeType == STMT_NODE && toWrite->semantic_value.stmtSemanticValue.kind == FUNCTION_CALL_STMT)
-        checkFunctionCall(toWrite);
+    // check if there are more arguments
+    AST_NODE *shouldNull = toWrite->rightSibling;
+    if(shouldNull != NULL)
+        printErrorMsgSpecial(functionCallNode, "write", TOO_MANY_ARGUMENTS);
+
+    checkExprNode(toWrite);
+    // write a constant, should be string
+    if(toWrite->nodeType == CONST_VALUE_NODE && toWrite->dataType != STRINGC)
+        printErrorMsg(functionCallNode, NOT_WRITABLE);
+    // write an constant expression, invalid
+    else if(toWrite->nodeType == EXPR_NODE && toWrite->semantic_value.exprSemanticValue.isConstEval == 1)
+        printErrorMsg(functionCallNode, NOT_WRITABLE);
+    // others: write identifier & write function call(handled in checkExprNode)
     return;
 }
 
@@ -672,10 +722,17 @@ void checkFunctionCall(AST_NODE* functionCallNode)
     AST_NODE *idNode = functionCallNode->child;
     AST_NODE *paramNode = idNode->rightSibling->child;
     char *idName = idNode->semantic_value.identifierSemanticValue.identifierName;
+    // special case: write function
+    if(strcmp(idName, "write") == 0){
+        checkWriteFunction(functionCallNode);
+        return;
+    }
+
     SymbolTableEntry *idEntry = retrieveSymbol(idName);
     if(idEntry == NULL){
         // warning : implicit declaration
         functionCallNode->dataType = ERROR_TYPE;
+        printErrorMsgSpecial(functionCallNode, , SYMBOL_UNDECLARED);
         return;
     }
     else if(idEntry->attribute->attributeKind != FUNCTION_SIGNATURE){
@@ -979,10 +1036,8 @@ void checkExprNode(AST_NODE* exprNode)
             exprNode->dataType = INT_TYPE;
         else if(exprNode->semantic_value.const1->const_type == FLOATC)
             exprNode->dataType = FLOAT_TYPE;
-        else{
-            exprNode->dataType = ERROR_TYPE;
-            printErrorMsg(exprNode, STRING_OPERATION);
-        }
+        else
+            exprNode->dataType = CONST_STRING_TYPE;
         return;
     }
     // function call node
@@ -1035,7 +1090,11 @@ void checkExprNode(AST_NODE* exprNode)
         checkExprNode(leftNode);
         checkExprNode(rightNode);
         // value of relative expression: 0 or 1(integer)
-        if(leftNode->dataType == ERROR_TYPE || rightNode->dataType == ERROR_TYPE)
+        if(leftNode->dataType == CONST_STRING_TYPE || rightNode->dataType == CONST_STRING_TYPE){
+            exprNode->dataType = ERROR_TYPE;
+            printErrorMsg(exprNode, STRING_OPERATION);
+        }
+        else if(leftNode->dataType == ERROR_TYPE || rightNode->dataType == ERROR_TYPE)
             exprNode->dataType = ERROR_TYPE;
         else
             exprNode->dataType = INT_TYPE;
@@ -1043,13 +1102,23 @@ void checkExprNode(AST_NODE* exprNode)
     // unary operation
     else if(exprNode->semantic_value.exprSemanticValue.kind == UNARY_OPERATION){
         checkExprNode(leftNode);
-        evaluateExprValue(exprNode);
+        if(leftNode->dataType == CONST_STRING_TYPE){
+            exprNode->dataType = ERROR_TYPE;
+            printErrorMsg(exprNode, STRING_OPERATION);
+        }
+        else
+            evaluateExprValue(exprNode);
     }
     // binary arithmetic operation, e.g, +, -, *, /
     else{
         checkExprNode(leftNode);
         checkExprNode(rightNode);
-        evaluateExprValue(exprNode);
+        if(leftNode->dataType == CONST_STRING_TYPE || rightNode->dataType == CONST_STRING_TYPE){
+            exprNode->dataType = ERROR_TYPE;
+            printErrorMsg(exprNode, STRING_OPERATION);
+        }
+        else
+            evaluateExprValue(exprNode);
     }
     return;
 }
