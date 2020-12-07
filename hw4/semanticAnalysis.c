@@ -6,6 +6,8 @@
 // You only need to check for errors stated in the hw4 document. //
 int g_anyErrorOccur = 0;
 
+#define FLOAT_DIMENSION -64
+#define IGNORE_DIMENSION -1
 
 typedef enum ErrorMsgKind
 {
@@ -34,7 +36,9 @@ typedef enum ErrorMsgKind
     PASS_ARRAY_TO_SCALAR,
     PASS_SCALAR_TO_ARRAY,
     NOT_WRITABLE,
-    PASS_INCOMPATIBLE_DIMENSION
+    PASS_INCOMPATIBLE_DIMENSION,
+    INVALID_OPERAND
+
 } ErrorMsgKind;
 
 void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKind)
@@ -80,6 +84,12 @@ void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKin
         case RETURN_ARRAY:
             printf("return type %s is an array\n", name2);
             break;
+        case INVALID_OPERAND:
+            printf("type of operand %s is void\n", name2);
+            break;
+        case VOID_VARIABLE:
+            printf("variable has incomplet type \'void\'\n", name2);
+            break;
             /*
         default:
             printf("Unhandled case in void printErrorMsg(AST_NODE* node, ERROR_MSG_KIND* errorMsgKind)\n");
@@ -110,6 +120,9 @@ void printErrorMsg(AST_NODE* node, ErrorMsgKind errorMsgKind)
             break;
         case STRING_OPERATION:
             printf("opeartion on string\n");
+            break;
+        case TYPEDEF_VOID_ARRAY:
+            printf("array has incomplete element type \'void\'\n");
             break;
         default:
             printf("Unhandled case in void printErrorMsg(AST_NODE* node, ERROR_MSG_KIND* errorMsgKind)\n");
@@ -250,8 +263,15 @@ void declareType(AST_NODE *declarationNode){
             // typeNode is scalar type, idNode is array type -> array
             else if(typeEntry->attribute->attr.typeDescriptor->kind == SCALAR_TYPE_DESCRIPTOR && dimensionNode != NULL){
                 ArrayProperties *symbolProperty = &(symbolAttr->attr.typeDescriptor->properties.arrayProperties);
+                ArrayProperties *typeProperty = &(typeEntry->attribute->attr.typeDescriptor->properties.arrayProperties);
+                if(typeProperty->elementType == VOID_TYPE){
+                    printErrorMsg(declarationNode, TYPEDEF_VOID_ARRAY);
+                    symbolProperty->elementType = ERROR_TYPE;
+                }
+                else{
+                    symbolProperty->elementType = dataType;
+                }
                 symbolAttr->attr.typeDescriptor->kind = ARRAY_TYPE_DESCRIPTOR;
-                symbolProperty->elementType = dataType;
                 getArrayDimensionAndSize(symbolAttr, idNode, 0);
                 enterSymbol(idName, symbolAttr);
             }
@@ -278,12 +298,20 @@ void declareVariable(AST_NODE *declarationNode){
     AST_NODE *idNode = typeNode->rightSibling;
     DATA_TYPE dataType;
     checkTypeNode(typeNode, &dataType);
+    SymbolTableEntry *typeEntry = typeNode->semantic_value.identifierSemanticValue.symbolTableEntry;
+    if(typeEntry != NULL && dataType != ERROR_TYPE){
+        TypeDescriptor *typeDescriptor = typeEntry->attribute->attr.typeDescriptor;
+        if(typeDescriptor->kind == SCALAR_TYPE_DESCRIPTOR && typeDescriptor->properties.dataType == VOID_TYPE){
+            printErrorMsgSpecial(declarationNode, idName, VOID_VARIABLE);
+            dataType = ERROR_TYPE;
+        }
+    }
     while(idNode != NULL){
         char *idName = idNode->semantic_value.identifierSemanticValue.identifierName;
         if(isDeclaredLocally(idName)){
             char errMsg[ERR_MSG_LEN];
             sprintf(errMsg, "\'%s %s\'", typeNode->semantic_value.identifierSemanticValue.identifierName, idName);
-            printErrorMsgSpecial(idNode, errMsg, SYMBOL_REDECLARE);
+            printErrorMsgSpecial(declarationNode, errMsg, SYMBOL_REDECLARE);
         }
         else{
             SymbolAttribute *symbolAttr = (SymbolAttribute *)malloc(sizeof(SymbolAttribute));
@@ -316,24 +344,32 @@ void getArrayDimensionAndSize(SymbolAttribute *symbolAttr, AST_NODE *idNode, int
     if(ignoreFirstDimSize){
         nowDim += 1;
         arrayDimension = arrayDimension->rightSibling;
-        size[0] = -1;
+        size[0] = IGNORE_DIMENSION;
     }
     while(arrayDimension != NULL){
         switch(arrayDimension->nodeType){
             case CONST_VALUE_NODE:
-                if(arrayDimension->semantic_value.const1->const_type != INTEGERC)
+                if(arrayDimension->semantic_value.const2->const_type != INTEGERC){
                     printErrorMsgSpecial(idNode, name, ARRAY_SIZE_NOT_INT);
-                else if(arrayDimension->semantic_value.const1->const_u.intval < 0)
+                    size[nowDim] = FLOAT_DIMENSION;
+                }
+                else if(arrayDimension->semantic_value.const1->const_u.intval < 0){
                     printErrorMsgSpecial(idNode, name, ARRAY_SIZE_NEGATIVE);
+                    size[nowDim] = arrayDimension->semantic_value.const1->const_u.intval;
+                }
                 else
                     size[nowDim] = arrayDimension->semantic_value.const1->const_u.intval;
                 break;
             case EXPR_NODE:
                 checkExprNode(arrayDimension);
-                if(arrayDimension->dataType == FLOAT_TYPE)
+                if(arrayDimension->dataType == FLOAT_TYPE){
                     printErrorMsgSpecial(idNode, name, ARRAY_SIZE_NOT_INT);
-                else if(arrayDimension->semantic_value.exprSemanticValue.constEvalValue.iValue < 0)
+                    size[nowDim] = FLOAT_DIMENSION;
+                }
+                else if(arrayDimension->semantic_value.exprSemanticValue.constEvalValue.iValue < 0){
                     printErrorMsgSpecial(idNode, name, ARRAY_SIZE_NEGATIVE);
+                    size[nowDim] = arrayDimension->semantic_value.exprSemanticValue.constEvalValue.iValue;
+                }
                 else
                     size[nowDim] = arrayDimension->semantic_value.exprSemanticValue.constEvalValue.iValue;
                 break;
@@ -441,14 +477,17 @@ void checkTypeNode(AST_NODE* typeNode, DATA_TYPE *dataType)
         sprintf(errMsg, "\'%s\' is not a type", typeNode->semantic_value.identifierSemanticValue.identifierName);
         printErrorMsgSpecial(typeNode, errMsg, SYMBOL_IS_NOT_TYPE);
         *dataType = ERROR_TYPE;
+        typeNode->semantic_value.identifierSemanticValue.symbolTableEntry = typeEntry;
     }
     else if(typeEntry->attribute->attr.typeDescriptor->kind == SCALAR_TYPE_DESCRIPTOR){
         // scalar type
         *dataType = typeEntry->attribute->attr.typeDescriptor->properties.dataType;
+        typeNode->semantic_value.identifierSemanticValue.symbolTableEntry = typeEntry;
     }
     else{
         // array type
         *dataType = typeEntry->attribute->attr.typeDescriptor->properties.arrayProperties.elementType;
+        typeNode->semantic_value.identifierSemanticValue.symbolTableEntry = typeEntry;
     }
 }
 
@@ -556,16 +595,23 @@ void checkAssignmentStmt(AST_NODE* assignmentNode)
     // check variable is available at this scope
     char *variableName = leftNode->semantic_value.identifierSemanticValue.identifierName;
     SymbolTableEntry *leftNodeSymbol = retrieveSymbol(variableName);
+    DATA_TYPE leftType;
 
     // unavailable, error
-    if(leftNodeSymbol == NULL)
+    if(leftNodeSymbol == NULL){
         printErrorMsgSpecial(leftNode, variableName, SYMBOL_UNDECLARED);
+        leftNode->dataType = ERROR_TYPE;
+    }
     // available, name is function
-    else if(leftNodeSymbol->attribute->attributeKind == FUNCTION_SIGNATURE)
+    else if(leftNodeSymbol->attribute->attributeKind == FUNCTION_SIGNATURE){
         printErrorMsgSpecial(leftNode, variableName, IS_FUNCTION_NOT_VARIABLE);
+        leftNode->dataType = ERROR_TYPE;
+    }
     // available, name is typeder
-    else if(leftNodeSymbol->attribute->attributeKind == TYPE_ATTRIBUTE)
+    else if(leftNodeSymbol->attribute->attributeKind == TYPE_ATTRIBUTE){
         printErrorMsgSpecial(leftNode, variableName, IS_TYPE_NOT_VARIABLE);
+        leftNode->dataType = ERROR_TYPE;
+    }
     // available, name is an array name
     else if(leftNodeSymbol->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR){
         // check dimension
@@ -576,6 +622,12 @@ void checkAssignmentStmt(AST_NODE* assignmentNode)
 
     // check relop on RHS of assignment
     checkExprNode(rightNode);
+
+    // type conversion
+    if(leftNode->dataType == ERROR_TYPE || rightNode->dataType == ERROR_TYPE)
+        assignmentNode->dataType = ERROR_TYPE;
+    else
+        assignmentNode->dataType = getBiggerType(leftNode->dataType, rightNode->dataType);
     return;
 }
 
@@ -931,7 +983,10 @@ void checkExprNode(AST_NODE* exprNode)
     else if(exprNode->nodeType == STMT_NODE && \
             exprNode->semantic_value.stmtSemanticValue.kind == FUNCTION_CALL_STMT){
         checkFunctionCall(exprNode);
-        if(exprNode->dataType == VOID_TYPE)
+        if(exprNode->dataType == VOID_TYPE){
+            printErrorMsgSpecial(exprNode, exprNode->child->semantic_value.identifierSemanticValue.identifierName, INVALID_OPERAND);
+            exprNode->dataType = ERROR_TYPE;
+        }
         return;
     }
     // identifier node
