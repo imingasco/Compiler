@@ -158,6 +158,7 @@ void checkProgramNode(AST_NODE *programNode)
     if(programNode->child == NULL) return;
     openScope();
     initType();
+    initFunction();
     AST_NODE *globalDecl = programNode->child;
     // globalDecl is a func_decl or a var_decl_list
     while(globalDecl != NULL){
@@ -202,6 +203,28 @@ void initType(){
     symbolAttr->attr.typeDescriptor->kind = SCALAR_TYPE_DESCRIPTOR;
     symbolAttr->attr.typeDescriptor->properties.dataType = VOID_TYPE;
     enterSymbol("void", symbolAttr);
+    return;
+}
+
+void initFunction(){
+    SymbolAttribute *symbolAttr;
+    // enter read() entry
+    symbolAttr = (SymbolAttribute *)malloc(sizeof(SymbolAttribute));
+    symbolAttr->attributeKind = FUNCTION_SIGNATURE;
+    symbolAttr->attr.functionSignature = (FunctionSignature *)malloc(sizeof(FunctionSignature));
+    symbolAttr->attr.functionSignature->parametersCount = 0;
+    symbolAttr->attr.functionSignature->parameterList = NULL;
+    symbolAttr->attr.functionSignature->returnType = INT_TYPE;
+    enterSymbol("read", symbolAttr);
+    // enter fread() entry
+    symbolAttr = (SymbolAttribute *)malloc(sizeof(SymbolAttribute));
+    symbolAttr->attributeKind = FUNCTION_SIGNATURE;
+    symbolAttr->attr.functionSignature = (FunctionSignature *)malloc(sizeof(FunctionSignature));
+    symbolAttr->attr.functionSignature->parametersCount = 0;
+    symbolAttr->attr.functionSignature->parameterList = NULL;
+    symbolAttr->attr.functionSignature->returnType = FLOAT_TYPE;
+    enterSymbol("fread", symbolAttr);
+    return;
 }
 
 void checkDeclarationNode(AST_NODE* declarationNode)
@@ -1232,7 +1255,7 @@ void checkStmtNode(AST_NODE* stmtNode)
 
 }
 
-
+/*
 void checkGeneralNode(AST_NODE *node)
 {
 }
@@ -1240,3 +1263,4 @@ void checkGeneralNode(AST_NODE *node)
 void checkDeclDimList(AST_NODE* idNode, TypeDescriptor* typeDescriptor, int ignoreFirstDimSize)
 {
 }
+*/
