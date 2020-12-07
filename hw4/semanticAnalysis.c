@@ -39,7 +39,8 @@ typedef enum ErrorMsgKind
     NOT_WRITABLE,
     PASS_INCOMPATIBLE_DIMENSION,
     INVALID_OPERAND,
-    NONCONSTANT_GLOBAL_DECLARATION
+    NONCONSTANT_GLOBAL_DECLARATION,
+    CONFLICT_TYPE
 } ErrorMsgKind;
 
 void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKind)
@@ -95,7 +96,10 @@ void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKin
             printf("return value in void function \'%s\'\n", name2);
             break;
         case NOT_FUNCTION_NAME:
-            printf("called object \'%s\' is not a function or function pointer\n");
+            printf("called object \'%s\' is not a function or function pointer\n", name2);
+            break;
+        case CONFLICT_TYPE:
+            printf("conflicting types for \'%s\'\n", name2);
             break;
             /*
         default:
@@ -133,6 +137,9 @@ void printErrorMsg(AST_NODE* node, ErrorMsgKind errorMsgKind)
             break;
         case TRY_TO_INIT_ARRAY:
             printf("initializing an array is not allowed\n");
+            break;
+        case NONCONSTANT_GLOBAL_DECLARATION:
+            printf("initializer element is not constant\n");
             break;
         default:
             printf("Unhandled case in void printErrorMsg(AST_NODE* node, ERROR_MSG_KIND* errorMsgKind)\n");
@@ -254,9 +261,14 @@ void declareType(AST_NODE *declarationNode){
     while(idNode != NULL){
         char *idName = idNode->semantic_value.identifierSemanticValue.identifierName;
         if(isDeclaredLocally(idName)){
-            char errMsg[ERR_MSG_LEN];
-            sprintf(errMsg, "\'typedef %s %s\'", typeNode->semantic_value.identifierSemanticValue.identifierName, idName);
-            printErrorMsgSpecial(idNode, errMsg, SYMBOL_REDECLARE);
+            SymbolTableEntry *idEntry = retrieveSymbol(idName);
+            if(idEntry->attribute->attributeKind != TYPE_ATTRIBUTE){
+                char errMsg[ERR_MSG_LEN];
+                sprintf(errMsg, "\'typedef %s %s\'", typeNode->semantic_value.identifierSemanticValue.identifierName, idName);
+                printErrorMsgSpecial(declarationNode, errMsg, SYMBOL_REDECLARE);
+            }
+            else
+                printErrorMsgSpecial(declarationNode, idName, CONFLICT_TYPE);
         }
         else{
             AST_NODE *dimensionNode = idNode->child;
@@ -371,15 +383,15 @@ void declareVariable(AST_NODE *declarationNode){
                                 case CONST_VALUE_NODE:
                                     break;
                                 case IDENTIFIER_NODE:
-                                    printErrorMsgSpecial(declarationNode, idName, NONCONSTANT_GLOBAL_DECLARATION);
+                                    printErrorMsg(declarationNode, NONCONSTANT_GLOBAL_DECLARATION);
                                     break;
                                 case EXPR_NODE:
                                     if(exprNode->semantic_value.exprSemanticValue.isConstEval == 0)
-                                        printErrorMsgSpecial(declarationNode, idName, NONCONSTANT_GLOBAL_DECLARATION);
+                                        printErrorMsg(declarationNode, NONCONSTANT_GLOBAL_DECLARATION);
                                     break;
                                 case STMT_NODE:
                                     if(exprNode->semantic_value.stmtSemanticValue.kind == FUNCTION_CALL_STMT)
-                                        printErrorMsgSpecial(declarationNode, idName, NONCONSTANT_GLOBAL_DECLARATION);
+                                        printErrorMsg(declarationNode, NONCONSTANT_GLOBAL_DECLARATION);
                                     break;
                                 default:
                                     break;
