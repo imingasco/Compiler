@@ -306,7 +306,7 @@ void declareVariable(AST_NODE *declarationNode){
                 case WITH_INIT_ID:
                     break;
             }
-            SymbolTableEntry *entry = enterSymbol(idName, symbolAttr);
+            idNode->semantic_value.identifierSemanticValue.symbolTableEntry = enterSymbol(idName, symbolAttr);
         }
         idNode = idNode->rightSibling;
     }
@@ -372,6 +372,7 @@ void declareFunction(AST_NODE* declarationNode){
         printErrorMsgSpecial(idNode, errMsg, SYMBOL_REDECLARE);
     }
     else{
+        typeNode->dataType = dataType;
         SymbolAttribute *symbolAttr = (SymbolAttribute *)malloc(sizeof(SymbolAttribute));
         symbolAttr->attributeKind = FUNCTION_SIGNATURE;
         symbolAttr->attr.functionSignature = (FunctionSignature *)malloc(sizeof(FunctionSignature));
@@ -920,6 +921,7 @@ void checkExprNode(AST_NODE* exprNode)
 {
     /* this function should put dataType in AST_NODE */
     // constant node
+    if(exprNode->nodeType == NUL_NODE) return;
     if(exprNode->nodeType == CONST_VALUE_NODE){
         if(exprNode->semantic_value.const1->const_type == INTEGERC)
             exprNode->dataType = INT_TYPE;
@@ -1019,17 +1021,16 @@ void checkReturnStmt(AST_NODE* returnNode)
     while((parentNode->nodeType != DECLARATION_NODE) || (parentNode->semantic_value.declSemanticValue.kind != FUNCTION_DECL)){
         parentNode = parentNode->parent;
     }
-    AST_NODE *returnType = parentNode->child;
-    char *functionName = returnType->rightSibling->semantic_value.identifierSemanticValue.identifierName;
-    if(returnItem->nodeType == NUL_NODE){
-        if(strcmp(returnType->semantic_value.identifierSemanticValue.identifierName, "void") != 0){
-            // warning : return nothing in non-void function
-        }
-    }
-    else{
-        checkExprNode(returnItem);
-        if(strcmp(returnType->semantic_value.identifierSemanticValue.identifierName, "void") == 0){
+    AST_NODE *typeNode = parentNode->child;
+    AST_NODE *idNode = typeNode->rightSibling;
+    char *functionName = idNode->semantic_value.identifierSemanticValue.identifierName;
+    checkExprNode(returnItem);
+    if(typeNode->dataType != ERROR_TYPE){
+        if(typeNode->dataType == VOID_TYPE && returnItem->nodeType != NUL_NODE){
             printErrorMsgSpecial(returnNode, functionName, RETURN_IN_VOID_FUNCTION);
+        }
+        else if(typeNode->dataType != VOID_TYPE && returnItem->nodeType == NUL_NODE){
+            // warning : return value in non-void function
         }
     }
 }
