@@ -230,17 +230,16 @@ void declareType(AST_NODE *declarationNode){
                 getArrayDimensionAndSize(idName, symbolAttr);
                 enterSymbol(idName, symbolAttr);
             }
-
-            ArrayProperties *symbolProperty = &(symbolAttr->attr.typeDescriptor->properties.arrayProperties);
-            ArrayProperties *typeProperty = &(typeEntry->attribute->attr.typeDescriptor->properties.arrayProperties);
             // both typeNode and idNode are scalar type -> scalar
-            if(typeEntry->attribute->attr.typeDescriptor->kind == SCALAR_TYPE_DESCRIPTOR && dimensionNode == NULL){
+            else if(typeEntry->attribute->attr.typeDescriptor->kind == SCALAR_TYPE_DESCRIPTOR && dimensionNode == NULL){
                 symbolAttr->attr.typeDescriptor->kind = SCALAR_TYPE_DESCRIPTOR;
                 symbolAttr->attr.typeDescriptor->properties.dataType = dataType;
                 enterSymbol(idName, symbolAttr);
             }
             // typeNode is array type, idNode is scalar type -> array
             else if(typeEntry->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR && dimensionNode == NULL){
+                ArrayProperties *symbolProperty = &(symbolAttr->attr.typeDescriptor->properties.arrayProperties);
+                ArrayProperties *typeProperty = &(typeEntry->attribute->attr.typeDescriptor->properties.arrayProperties);
                 symbolAttr->attr.typeDescriptor->kind = ARRAY_TYPE_DESCRIPTOR;
                 symbolProperty->elementType = dataType;
                 symbolProperty->dimension = typeProperty->dimension;
@@ -257,6 +256,8 @@ void declareType(AST_NODE *declarationNode){
             }
             // typeNode is array type, idNode is array type -> array
             else{
+                ArrayProperties *symbolProperty = &(symbolAttr->attr.typeDescriptor->properties.arrayProperties);
+                ArrayProperties *typeProperty = &(typeEntry->attribute->attr.typeDescriptor->properties.arrayProperties);
                 symbolAttr->attr.typeDescriptor->kind = ARRAY_TYPE_DESCRIPTOR;
                 symbolProperty->elementType = dataType;
                 getArrayDimensionAndSize(symbolAttr, idNode, 0);
