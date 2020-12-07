@@ -24,6 +24,7 @@ typedef enum ErrorMsgKind
     TOO_FEW_ARGUMENTS,
     TOO_MANY_ARGUMENTS,
     RETURN_TYPE_UNMATCH,
+    RETURN_IN_VOID_FUNCTION,
     INCOMPATIBLE_ARRAY_DIMENSION,
     NOT_ASSIGNABLE,
     NOT_ARRAY,
@@ -88,7 +89,10 @@ void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKin
             printf("type of operand %s is void\n", name2);
             break;
         case VOID_VARIABLE:
-            printf("variable has incomplet type \'void\'\n", name2);
+            printf("variable has incomplete type \'void\'\n", name2);
+            break;
+        case RETURN_IN_VOID_FUNCTION:
+            printf("return value in void function \'%s\'\n", name2);
             break;
             /*
         default:
@@ -330,7 +334,7 @@ void declareVariable(AST_NODE *declarationNode){
                 case WITH_INIT_ID:
                     break;
             }
-            SymbolTableEntry *entry = enterSymbol(idName, symbolAttr);
+            idNode->semantic_value.identifierSemanticValue.symbolTableEntry = enterSymbol(idName, symbolAttr);
         }
         idNode = idNode->rightSibling;
     }
@@ -404,6 +408,7 @@ void declareFunction(AST_NODE* declarationNode){
         printErrorMsgSpecial(idNode, errMsg, SYMBOL_REDECLARE);
     }
     else{
+        typeNode->dataType = dataType;
         SymbolAttribute *symbolAttr = (SymbolAttribute *)malloc(sizeof(SymbolAttribute));
         symbolAttr->attributeKind = FUNCTION_SIGNATURE;
         symbolAttr->attr.functionSignature = (FunctionSignature *)malloc(sizeof(FunctionSignature));
@@ -968,6 +973,7 @@ void checkExprNode(AST_NODE* exprNode)
 {
     /* this function should put dataType in AST_NODE */
     // constant node
+    if(exprNode->nodeType == NUL_NODE) return;
     if(exprNode->nodeType == CONST_VALUE_NODE){
         if(exprNode->semantic_value.const1->const_type == INTEGERC)
             exprNode->dataType = INT_TYPE;
@@ -1065,10 +1071,23 @@ void checkConstValueNode(AST_NODE* constValueNode)
 
 void checkReturnStmt(AST_NODE* returnNode)
 {
-    AST_NODE *returnType = returnNode->parent->parent->leftmostSibling;
     AST_NODE *returnItem = returnNode->child;
+    AST_NODE *parentNode = returnNode->parent;
+    while((parentNode->nodeType != DECLARATION_NODE) || (parentNode->semantic_value.declSemanticValue.kind != FUNCTION_DECL)){
+        parentNode = parentNode->parent;
+    }
+    AST_NODE *typeNode = parentNode->child;
+    AST_NODE *idNode = typeNode->rightSibling;
+    char *functionName = idNode->semantic_value.identifierSemanticValue.identifierName;
     checkExprNode(returnItem);
-    
+    if(typeNode->dataType != ERROR_TYPE){
+        if(typeNode->dataType == VOID_TYPE && returnItem->nodeType != NUL_NODE){
+            printErrorMsgSpecial(returnNode, functionName, RETURN_IN_VOID_FUNCTION);
+        }
+        else if(typeNode->dataType != VOID_TYPE && returnItem->nodeType == NUL_NODE){
+            // warning : return value in non-void function
+        }
+    }
 }
 
 
@@ -1115,13 +1134,19 @@ void checkStmtNode(AST_NODE* stmtNode)
         default:
             switch(stmtNode->semantic_value.stmtSemanticValue.kind){
                 case IF_STMT:
+                    openScope();
                     checkIfStmt(stmtNode);
+                    closeScope();
                     break;
                 case WHILE_STMT:
+                    openScope();
                     checkWhileStmt(stmtNode);
+                    closeScope();
                     break;
                 case FOR_STMT:
+                    openScope();
                     checkForStmt(stmtNode);
+                    closeScope();
                     break;
                 case RETURN_STMT:
                     checkReturnStmt(stmtNode);
