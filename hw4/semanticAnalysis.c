@@ -38,7 +38,8 @@ typedef enum ErrorMsgKind
     PASS_SCALAR_TO_ARRAY,
     NOT_WRITABLE,
     PASS_INCOMPATIBLE_DIMENSION,
-    INVALID_OPERAND
+    INVALID_OPERAND,
+    NONCONSTANT_GLOBAL_DECLARATION
 } ErrorMsgKind;
 
 void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKind)
@@ -92,6 +93,9 @@ void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKin
             break;
         case RETURN_IN_VOID_FUNCTION:
             printf("return value in void function \'%s\'\n", name2);
+            break;
+        case NOT_FUNCTION_NAME:
+            printf("called object \'%s\' is not a function or function pointer\n");
             break;
             /*
         default:
@@ -355,9 +359,32 @@ void declareVariable(AST_NODE *declarationNode){
                         getArrayDimensionAndSize(symbolAttr, idNode, 0);
                         break;
                     case WITH_INIT_ID:
+                        AST_NODE *exprNode = idNode->child;
                         symbolAttr->attr.typeDescriptor->kind = SCALAR_TYPE_DESCRIPTOR;
                         symbolAttr->attr.typeDescriptor->properties.dataType = dataType;
-                        checkExprNode(idNode->child);
+                        checkExprNode(exprNode);
+                        if(exprNode->nodeType == CONST_VALUE_NODE && exprNode->dataType == STRINGC)
+                            printErrorMsg(declarationNode, STRING_OPERATION);
+                        // global declaration case
+                        if(symbolTable.currentLevel == 0){
+                            switch(exprNode->nodeType){
+                                case CONST_VALUE_NODE:
+                                    break;
+                                case IDENTIFIER_NODE:
+                                    printErrorMsgSpecial(declarationNode, idName, NONCONSTANT_GLOBAL_DECLARATION);
+                                    break;
+                                case EXPR_NODE:
+                                    if(exprNode->semantic_value.exprSemanticValue.isConstEval == 0)
+                                        printErrorMsgSpecial(declarationNode, idName, NONCONSTANT_GLOBAL_DECLARATION);
+                                    break;
+                                case STMT_NODE:
+                                    if(exprNode->semantic_value.stmtSemanticValue.kind == FUNCTION_CALL_STMT)
+                                        printErrorMsgSpecial(declarationNode, idName, NONCONSTANT_GLOBAL_DECLARATION);
+                                    break;
+                                default:
+                                    break;
+                            }
+                        }
                         break;
                 }
             }
@@ -390,6 +417,8 @@ void declareVariable(AST_NODE *declarationNode){
                             symbolProperty->sizeInEachDimension[symbolProperty->dimension + i] = typeProperty->sizeInEachDimension[i];
                         symbolProperty->dimension += typeProperty->dimension;
                         checkExprNode(idNode->child);
+                        if(exprNode->nodeType == CONST_VALUE_NODE && exprNode->dataType == STRINGC)
+                            printErrorMsg(declarationNode, STRING_OPERATION);
                         break;
                 }
             }
@@ -755,12 +784,13 @@ void checkFunctionCall(AST_NODE* functionCallNode)
     if(idEntry == NULL){
         // warning : implicit declaration
         functionCallNode->dataType = ERROR_TYPE;
-        printErrorMsgSpecial(functionCallNode, , SYMBOL_UNDECLARED);
+        printErrorMsgSpecial(functionCallNode, idName, SYMBOL_UNDECLARED);
         return;
     }
     else if(idEntry->attribute->attributeKind != FUNCTION_SIGNATURE){
         // error : not callable
         functionCallNode->dataType = ERROR_TYPE;
+        printErrorMsgSpecial(functionCallNode, idName, NOT_FUNCTION_NAME);
         return;
     }
     while(paramNode != NULL){
