@@ -1171,8 +1171,10 @@ void checkExprNode(AST_NODE* exprNode)
             exprNode->dataType = ERROR_TYPE;
             printErrorMsg(exprNode, STRING_OPERATION);
         }
-        else
+        else if(leftNode->dataType != ERROR_TYPE)
             evaluateExprValue(exprNode);
+        else
+            exprNode->dataType = ERROR_TYPE;
     }
     // binary arithmetic operation, e.g, +, -, *, /
     else{
@@ -1182,8 +1184,10 @@ void checkExprNode(AST_NODE* exprNode)
             exprNode->dataType = ERROR_TYPE;
             printErrorMsg(exprNode, STRING_OPERATION);
         }
-        else
+        else if(leftNode->dataType != ERROR_TYPE && rightNode->dataType != ERROR_TYPE)
             evaluateExprValue(exprNode);
+        else
+            exprNode->dataType = ERROR_TYPE;
     }
     return;
 }
