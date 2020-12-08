@@ -92,7 +92,7 @@ void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKin
             printf("type of operand %s is void\n", name2);
             break;
         case VOID_VARIABLE:
-            printf("variable has incomplete type \'void\'\n", name2);
+            printf("variable %s has incomplete type \'void\'\n", name2);
             break;
         case RETURN_IN_VOID_FUNCTION:
             printf("return value in void function \'%s\'\n", name2);
@@ -772,7 +772,7 @@ void checkWriteFunction(AST_NODE* functionCallNode)
 
     checkExprNode(toWrite);
     // write a constant, should be string
-    if(toWrite->nodeType == CONST_VALUE_NODE && toWrite->dataType != STRINGC)
+    if(toWrite->nodeType == CONST_VALUE_NODE && toWrite->dataType != CONST_STRING_TYPE)
         printErrorMsg(functionCallNode, NOT_WRITABLE);
     // write an constant expression, invalid
     else if(toWrite->nodeType == EXPR_NODE && toWrite->semantic_value.exprSemanticValue.isConstEval == 1)
