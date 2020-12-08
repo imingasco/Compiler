@@ -472,6 +472,7 @@ void getArrayDimensionAndSize(SymbolAttribute *symbolAttr, AST_NODE *idNode, int
                 break;
             case EXPR_NODE:
                 checkExprNode(arrayDimension);
+                //printf("getArrayDimensionAndSize: %d\n", arrayDimension->semantic_value.exprSemanticValue.constEvalValue.iValue);
                 if(arrayDimension->dataType == FLOAT_TYPE){
                     printErrorMsgSpecial(idNode, name, ARRAY_SIZE_NOT_INT);
                     size[nowDim] = FLOAT_DIMENSION;
@@ -656,6 +657,14 @@ void checkArrayReference(AST_NODE *idNode, ArrayProperties property, int isLvalu
     int nowDimension = 0;
     AST_NODE *arrayDimension = idNode->child;
     while(arrayDimension){
+        checkExprNode(arrayDimension);
+        if(arrayDimension->dataType == ERROR_TYPE)
+            idNode->dataType = ERROR_TYPE;
+        else if(arrayDimension->dataType != INT_TYPE){
+            printErrorMsg(arrayDimension, ARRAY_SUBSCRIPT_NOT_INT);
+            idNode->dataType = ERROR_TYPE;
+        }
+        /*
         // constant index
         if(arrayDimension->nodeType == CONST_VALUE_NODE && arrayDimension->semantic_value.const1->const_type != INTEGERC){
             idNode->dataType = ERROR_TYPE;
@@ -672,6 +681,7 @@ void checkArrayReference(AST_NODE *idNode, ArrayProperties property, int isLvalu
             else if(arrayDimension->dataType == ERROR_TYPE)
                 idNode->dataType = ERROR_TYPE;
         }
+        */
         arrayDimension = arrayDimension->rightSibling;
         nowDimension++;
     }
@@ -958,18 +968,18 @@ void getExprOrConstValue(AST_NODE* exprOrConstNode, int** iValue, double** fValu
 {
     if(exprOrConstNode->nodeType == CONST_VALUE_NODE){
         if(exprOrConstNode->semantic_value.const1->const_type == INTEGERC){
-            *iValue = &(exprOrConstNode->semantic_value.const1->const_u.intval);
+            *iValue = &exprOrConstNode->semantic_value.const1->const_u.intval;
         }
         else{
-            *fValue = &(exprOrConstNode->semantic_value.const1->const_u.fval);
+            *fValue = &exprOrConstNode->semantic_value.const1->const_u.fval;
         }
     }
     else if(exprOrConstNode->semantic_value.exprSemanticValue.isConstEval == 1){
         if(exprOrConstNode->dataType == INT_TYPE){
-            *iValue = &(exprOrConstNode->semantic_value.exprSemanticValue.constEvalValue.iValue);
+            *iValue = &exprOrConstNode->semantic_value.exprSemanticValue.constEvalValue.iValue;
         }
         else{
-            *fValue = &(exprOrConstNode->semantic_value.exprSemanticValue.constEvalValue.fValue);
+            *fValue = &exprOrConstNode->semantic_value.exprSemanticValue.constEvalValue.fValue;
         }
     }
     return;
@@ -988,21 +998,22 @@ void evaluateExprValue(AST_NODE* exprNode)
             double *lfvalue = NULL;
             exprNode->semantic_value.exprSemanticValue.isConstEval = 1;
             getExprOrConstValue(leftNode, &livalue, &lfvalue);
+            //printf("before evaluateExprValue: %d\n", *livalue);
             if(livalue){
-                if(leftNode->semantic_value.exprSemanticValue.op.unaryOp == UNARY_OP_LOGICAL_NEGATION)
+                if(exprNode->semantic_value.exprSemanticValue.op.unaryOp == UNARY_OP_LOGICAL_NEGATION)
                     exprNode->semantic_value.exprSemanticValue.constEvalValue.iValue = (*livalue == 0);
-                else if(leftNode->semantic_value.exprSemanticValue.op.unaryOp == UNARY_OP_NEGATIVE)
+                else if(exprNode->semantic_value.exprSemanticValue.op.unaryOp == UNARY_OP_NEGATIVE)
                     exprNode->semantic_value.exprSemanticValue.constEvalValue.iValue = -(*livalue);
                 else
                     exprNode->semantic_value.exprSemanticValue.constEvalValue.iValue = *livalue;
                 exprNode->dataType = INT_TYPE;
             }
             else if(lfvalue){
-                if(leftNode->semantic_value.exprSemanticValue.op.unaryOp == UNARY_OP_LOGICAL_NEGATION){
+                if(exprNode->semantic_value.exprSemanticValue.op.unaryOp == UNARY_OP_LOGICAL_NEGATION){
                     exprNode->semantic_value.exprSemanticValue.constEvalValue.iValue = (*lfvalue == 0);
                     exprNode->dataType = INT_TYPE;
                 }
-                else if(leftNode->semantic_value.exprSemanticValue.op.unaryOp == UNARY_OP_NEGATIVE){
+                else if(exprNode->semantic_value.exprSemanticValue.op.unaryOp == UNARY_OP_NEGATIVE){
                     exprNode->semantic_value.exprSemanticValue.constEvalValue.fValue = -(*lfvalue);
                     exprNode->dataType = FLOAT_TYPE;
                 }
@@ -1011,12 +1022,13 @@ void evaluateExprValue(AST_NODE* exprNode)
                     exprNode->dataType = FLOAT_TYPE;
                 }
             }
+            //printf("after evaluateExprValue: %d\n", exprNode->semantic_value.exprSemanticValue.constEvalValue.iValue);
         }
         else{
             exprNode->semantic_value.exprSemanticValue.isConstEval = 0;
             if(leftNode->dataType == ERROR_TYPE)
                 exprNode->dataType = ERROR_TYPE;
-            else if(leftNode->semantic_value.exprSemanticValue.op.unaryOp == UNARY_OP_LOGICAL_NEGATION)
+            else if(exprNode->semantic_value.exprSemanticValue.op.unaryOp == UNARY_OP_LOGICAL_NEGATION)
                 exprNode->dataType = INT_TYPE;
             else
                 exprNode->dataType = leftNode->dataType;
@@ -1129,23 +1141,28 @@ void checkExprNode(AST_NODE* exprNode)
         // identifier is a function
         else if(identifier->attribute->attributeKind == FUNCTION_SIGNATURE){
             // error
+            // printf("func name: %s\n", identifierName);
             exprNode->dataType = ERROR_TYPE;
             printErrorMsgSpecial(exprNode, identifierName, IS_FUNCTION_NOT_VARIABLE);
         }
         // identifier is a typedef
         else if(identifier->attribute->attributeKind == TYPE_ATTRIBUTE){
             // error
+            // printf("type name: %s\n", identifierName);
             exprNode->dataType = ERROR_TYPE;
             printErrorMsgSpecial(exprNode, identifierName, IS_TYPE_NOT_VARIABLE);
         }
         // identifier is an array
         else if(identifier->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR){
+            // printf("array name: %s\n", identifierName);
             ArrayProperties property = identifier->attribute->attr.typeDescriptor->properties.arrayProperties;
             checkArrayReference(exprNode, property, 0);
         }
         // identifier is a scalar
-        else
+        else{
+            // printf("scalar name: %s\n", identifierName);
             exprNode->dataType = identifier->attribute->attr.typeDescriptor->properties.dataType;
+        }
         return;
     }
     // nonterminal nodes
@@ -1172,8 +1189,10 @@ void checkExprNode(AST_NODE* exprNode)
             exprNode->dataType = ERROR_TYPE;
             printErrorMsg(exprNode, STRING_OPERATION);
         }
-        else if(leftNode->dataType != ERROR_TYPE)
+        else if(leftNode->dataType != ERROR_TYPE){
             evaluateExprValue(exprNode);
+            //printf("checkExpr: %d\n", exprNode->semantic_value.exprSemanticValue.constEvalValue.iValue);
+        }
         else
             exprNode->dataType = ERROR_TYPE;
     }
