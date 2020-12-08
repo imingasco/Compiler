@@ -908,11 +908,12 @@ void checkParameterPassing(Parameter* formalParameter, AST_NODE* actualParameter
                                     sprintf(dimensionSize, "[%d]", actualArrayProperties.sizeInEachDimension[actualDimCnt]);
                                     strcat(actualParameterType, dimensionSize);
                                     if(formalDimCnt < formalArrayProperties.dimension){
-                                        dimNotMatch = (actualArrayProperties.sizeInEachDimension[actualDimCnt] != formalArrayProperties.sizeInEachDimension[formalDimCnt]);
+                                        dimNotMatch += (actualArrayProperties.sizeInEachDimension[actualDimCnt] != formalArrayProperties.sizeInEachDimension[formalDimCnt]);
                                     }
                                     actualDimCnt += 1;
                                     formalDimCnt += 1;
                                 }
+                                dimNotMatch += (formalDimCnt != formalArrayProperties.dimension);
                                 strcat(actualParameterType, "\'");
                                 if(dimNotMatch){
                                     sprintf(errMsg, "%s to %s", actualParameterType, formalParameterType);
@@ -953,22 +954,22 @@ int isRelativeOperation(AST_NODE *exprRelatedNode){
 }
 
 
-void getExprOrConstValue(AST_NODE* exprOrConstNode, int* iValue, double* fValue)
+void getExprOrConstValue(AST_NODE* exprOrConstNode, int** iValue, double** fValue)
 {
     if(exprOrConstNode->nodeType == CONST_VALUE_NODE){
         if(exprOrConstNode->semantic_value.const1->const_type == INTEGERC){
-            iValue = &(exprOrConstNode->semantic_value.const1->const_u.intval);
+            *iValue = &(exprOrConstNode->semantic_value.const1->const_u.intval);
         }
         else{
-            fValue = &(exprOrConstNode->semantic_value.const1->const_u.fval);
+            *fValue = &(exprOrConstNode->semantic_value.const1->const_u.fval);
         }
     }
     else if(exprOrConstNode->semantic_value.exprSemanticValue.isConstEval == 1){
         if(exprOrConstNode->dataType == INT_TYPE){
-            iValue = &(exprOrConstNode->semantic_value.exprSemanticValue.constEvalValue.iValue);
+            *iValue = &(exprOrConstNode->semantic_value.exprSemanticValue.constEvalValue.iValue);
         }
         else{
-            fValue = &(exprOrConstNode->semantic_value.exprSemanticValue.constEvalValue.fValue);
+            *fValue = &(exprOrConstNode->semantic_value.exprSemanticValue.constEvalValue.fValue);
         }
     }
     return;
@@ -986,7 +987,7 @@ void evaluateExprValue(AST_NODE* exprNode)
             int *livalue = NULL;
             double *lfvalue = NULL;
             exprNode->semantic_value.exprSemanticValue.isConstEval = 1;
-            getExprOrConstValue(leftNode, livalue, lfvalue);
+            getExprOrConstValue(leftNode, &livalue, &lfvalue);
             if(livalue){
                 if(leftNode->semantic_value.exprSemanticValue.op.unaryOp == UNARY_OP_LOGICAL_NEGATION)
                     exprNode->semantic_value.exprSemanticValue.constEvalValue.iValue = (*livalue == 0);
@@ -1029,8 +1030,8 @@ void evaluateExprValue(AST_NODE* exprNode)
         double *lfvalue = NULL;
         double *rfvalue = NULL;
         exprNode->semantic_value.exprSemanticValue.isConstEval = 1;
-        getExprOrConstValue(leftNode, livalue, lfvalue);
-        getExprOrConstValue(rightNode, rivalue, rfvalue);
+        getExprOrConstValue(leftNode, &livalue, &lfvalue);
+        getExprOrConstValue(rightNode, &rivalue, &rfvalue);
         // both integer
         if(livalue && rivalue){
             if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_ADD)
