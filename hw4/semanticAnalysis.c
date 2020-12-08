@@ -542,7 +542,6 @@ void declareFunctionParam(AST_NODE *paramListNode, FunctionSignature *functionSi
         AST_NODE *idNode = typeNode->rightSibling;
         DATA_TYPE dataType;
         checkTypeNode(typeNode, &dataType);
-        declareVariable(paramNode);
         char *idName = idNode->semantic_value.identifierSemanticValue.identifierName;
         // declare param
         if(dataType != ERROR_TYPE && isDeclaredLocally(idName)){
@@ -551,6 +550,7 @@ void declareFunctionParam(AST_NODE *paramListNode, FunctionSignature *functionSi
             printErrorMsgSpecial(idNode, errMsg, SYMBOL_REDECLARE);
         }
         else{
+            declareVariable(paramNode);
             SymbolAttribute *symbolAttr = (SymbolAttribute *)malloc(sizeof(SymbolAttribute));
             symbolAttr->attributeKind = VARIABLE_ATTRIBUTE;
             symbolAttr->attr.typeDescriptor = (TypeDescriptor *)malloc(sizeof(TypeDescriptor));
