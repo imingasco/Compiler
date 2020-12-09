@@ -379,7 +379,7 @@ void declareVariable(AST_NODE *declarationNode){
                         symbolAttr->attr.typeDescriptor->kind = SCALAR_TYPE_DESCRIPTOR;
                         symbolAttr->attr.typeDescriptor->properties.dataType = dataType;
                         checkExprNode(exprNode);
-                        if(exprNode->nodeType == CONST_VALUE_NODE && exprNode->semantic_value.const1->const_type == STRINGC)
+                        if(exprNode->dataType == CONST_STRING_TYPE)
                             printErrorMsg(declarationNode, STRING_OPERATION);
                         // global declaration case
                         if(symbolTable.currentLevel == 0){
@@ -435,7 +435,7 @@ void declareVariable(AST_NODE *declarationNode){
                             symbolProperty->sizeInEachDimension[symbolProperty->dimension + i] = typeProperty->sizeInEachDimension[i];
                         symbolProperty->dimension += typeProperty->dimension;
                         checkExprNode(exprNode);
-                        if(exprNode->nodeType == CONST_VALUE_NODE && exprNode->semantic_value.const1->const_type == STRINGC)
+                        if(exprNode->dataType == CONST_STRING_TYPE)
                             printErrorMsg(declarationNode, STRING_OPERATION);
                         break;
                 }
@@ -457,6 +457,24 @@ void getArrayDimensionAndSize(SymbolAttribute *symbolAttr, AST_NODE *idNode, int
         size[0] = IGNORE_DIMENSION;
     }
     while(arrayDimension != NULL){
+        checkExprNode(arrayDimension);
+        if(arrayDimension->dataType == FLOAT_TYPE || arrayDimension->dataType == CONST_STRING_TYPE){
+            printErrorMsgSpecial(idNode, name, ARRAY_SIZE_NOT_INT);
+            size[nowDim] = FLOAT_DIMENSION;
+        }
+        else if(arrayDimension->dataType == INT_TYPE && 
+               ((arrayDimension->nodeType == EXPR_NODE && arrayDimension->semantic_value.exprSemanticValue.constEvalValue.iValue < 0) || \
+                (arrayDimension->nodeType == CONST_VALUE_NODE && arrayDimension->semantic_value.const1->const_u.intval < 0))){
+            printErrorMsgSpecial(idNode, name, ARRAY_SIZE_NEGATIVE);
+            size[nowDim] = arrayDimension->semantic_value.exprSemanticValue.constEvalValue.iValue;
+        }
+        else if(arrayDimension->dataType == INT_TYPE && arrayDimension->nodeType == EXPR_NODE){
+            size[nowDim] = arrayDimension->semantic_value.exprSemanticValue.constEvalValue.iValue;
+        }
+        else if(arrayDimension->dataType == INT_TYPE && arrayDimension->nodeType == CONST_VALUE_NODE){
+            size[nowDim] = arrayDimension->semantic_value.const1->const_u.intval;
+        }
+        /*
         switch(arrayDimension->nodeType){
             case CONST_VALUE_NODE:
                 if(arrayDimension->semantic_value.const1->const_type != INTEGERC){
@@ -487,6 +505,7 @@ void getArrayDimensionAndSize(SymbolAttribute *symbolAttr, AST_NODE *idNode, int
             default:
                 break;
         }
+        */
         nowDim++;
         arrayDimension = arrayDimension->rightSibling;
     }
@@ -637,7 +656,12 @@ void checkForStmt(AST_NODE* forNode)
     AST_NODE *updateAssignExpr = updateAssignExprRoot->child;
     AST_NODE *stmtNode = updateAssignExprRoot->rightSibling;
     while(initAssignExpr){
-        checkAssignmentStmt(initAssignExpr);
+        if(initAssignExpr->nodeType == STMT_NODE && initAssignExpr->semantic_value.stmtSemanticValue.kind == ASSIGN_STMT)
+            checkAssignmentStmt(initAssignExpr);
+        else if(initAssignExpr->nodeType == STMT_NODE && initAssignExpr->semantic_value.stmtSemanticValue.kind == FUNCTION_CALL_STMT)
+            checkFunctionCall(initAssignExpr);
+        else
+            checkExprNode(initAssignExpr);
         initAssignExpr = initAssignExpr->rightSibling;
     }
     while(relopExpr){
@@ -645,7 +669,12 @@ void checkForStmt(AST_NODE* forNode)
         relopExpr = relopExpr->rightSibling;
     }
     while(updateAssignExpr){
-        checkAssignmentStmt(updateAssignExpr);
+        if(updateAssignExpr->nodeType == STMT_NODE && updateAssignExpr->semantic_value.stmtSemanticValue.kind == ASSIGN_STMT)
+            checkAssignmentStmt(updateAssignExpr);
+        else if(updateAssignExpr->nodeType == STMT_NODE && updateAssignExpr->semantic_value.stmtSemanticValue.kind == FUNCTION_CALL_STMT)
+            checkFunctionCall(updateAssignExpr);
+        else
+            checkExprNode(updateAssignExpr);
         updateAssignExpr = updateAssignExpr->rightSibling;
     }
     checkStmtNode(stmtNode);
@@ -1110,10 +1139,12 @@ void checkExprNode(AST_NODE* exprNode)
     // constant node
     if(exprNode->nodeType == NUL_NODE) return;
     if(exprNode->nodeType == CONST_VALUE_NODE){
-        if(exprNode->semantic_value.const1->const_type == INTEGERC)
+        if(exprNode->semantic_value.const1->const_type == INTEGERC){
             exprNode->dataType = INT_TYPE;
-        else if(exprNode->semantic_value.const1->const_type == FLOATC)
+        }
+        else if(exprNode->semantic_value.const1->const_type == FLOATC){
             exprNode->dataType = FLOAT_TYPE;
+        }
         else
             exprNode->dataType = CONST_STRING_TYPE;
         return;
