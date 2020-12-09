@@ -995,21 +995,11 @@ int isRelativeOperation(AST_NODE *exprRelatedNode){
 
 void getExprOrConstValue(AST_NODE* exprOrConstNode, int** iValue, double** fValue)
 {
-    if(exprOrConstNode->nodeType == CONST_VALUE_NODE){
-        if(exprOrConstNode->semantic_value.const1->const_type == INTEGERC){
-            *iValue = &exprOrConstNode->semantic_value.const1->const_u.intval;
-        }
-        else{
-            *fValue = &exprOrConstNode->semantic_value.const1->const_u.fval;
-        }
+    if(exprOrConstNode->semantic_value.const1->const_type == INTEGERC){
+        *iValue = &exprOrConstNode->semantic_value.const1->const_u.intval;
     }
-    else if(exprOrConstNode->semantic_value.exprSemanticValue.isConstEval == 1){
-        if(exprOrConstNode->dataType == INT_TYPE){
-            *iValue = &exprOrConstNode->semantic_value.exprSemanticValue.constEvalValue.iValue;
-        }
-        else{
-            *fValue = &exprOrConstNode->semantic_value.exprSemanticValue.constEvalValue.fValue;
-        }
+    else{
+        *fValue = &exprOrConstNode->semantic_value.const1->const_u.fval;
     }
     return;
 }
@@ -1022,32 +1012,41 @@ void evaluateExprValue(AST_NODE* exprNode)
     AST_NODE *rightNode = leftNode->rightSibling;
     // for unary operation
     if(rightNode == NULL){
-       if(leftNode->nodeType == CONST_VALUE_NODE || leftNode->semantic_value.exprSemanticValue.isConstEval == 1){
+       if(leftNode->nodeType == CONST_VALUE_NODE){
             int *livalue = NULL;
             double *lfvalue = NULL;
-            exprNode->semantic_value.exprSemanticValue.isConstEval = 1;
             getExprOrConstValue(leftNode, &livalue, &lfvalue);
+            exprNode->nodeType = CONST_VALUE_NODE;
+            CON_Type *constInfo = (CON_Type *)malloc(sizeof(CON_Type));
             //printf("before evaluateExprValue: %d\n", *livalue);
             if(livalue){
                 if(exprNode->semantic_value.exprSemanticValue.op.unaryOp == UNARY_OP_LOGICAL_NEGATION)
-                    exprNode->semantic_value.exprSemanticValue.constEvalValue.iValue = (*livalue == 0);
+                    constInfo->const_u.intval = (*livalue == 0);
                 else if(exprNode->semantic_value.exprSemanticValue.op.unaryOp == UNARY_OP_NEGATIVE)
-                    exprNode->semantic_value.exprSemanticValue.constEvalValue.iValue = -(*livalue);
+                    constInfo->const_u.intval = -(*livalue);
                 else
-                    exprNode->semantic_value.exprSemanticValue.constEvalValue.iValue = *livalue;
+                    constInfo->const_u.intval = *livalue;
+                constInfo->const_type = INTEGERC;
+                exprNode->semantic_value.const1 = constInfo;
                 exprNode->dataType = INT_TYPE;
             }
             else if(lfvalue){
                 if(exprNode->semantic_value.exprSemanticValue.op.unaryOp == UNARY_OP_LOGICAL_NEGATION){
-                    exprNode->semantic_value.exprSemanticValue.constEvalValue.iValue = (*lfvalue == 0);
+                    constInfo->const_u.intval = (*lfvalue == 0);
+                    constInfo->const_type = INTEGERC;
+                    exprNode->semantic_value.const1 = constInfo;
                     exprNode->dataType = INT_TYPE;
                 }
                 else if(exprNode->semantic_value.exprSemanticValue.op.unaryOp == UNARY_OP_NEGATIVE){
-                    exprNode->semantic_value.exprSemanticValue.constEvalValue.fValue = -(*lfvalue);
+                    constInfo->const_u.fval = -(*lfvalue);
+                    constInfo->const_type = FLOATC;
+                    exprNode->semantic_value.const1 = constInfo;
                     exprNode->dataType = FLOAT_TYPE;
                 }
                 else{
-                    exprNode->semantic_value.exprSemanticValue.constEvalValue.fValue = *lfvalue;
+                    constInfo->const_u.fval = *lfvalue;
+                    constInfo->const_type = FLOATC;
+                    exprNode->semantic_value.const1 = constInfo;
                     exprNode->dataType = FLOAT_TYPE;
                 }
             }
@@ -1064,61 +1063,69 @@ void evaluateExprValue(AST_NODE* exprNode)
         }
     }
     // binary arithmetic opeartion, both side are constant evaluations
-    else if((leftNode->nodeType == CONST_VALUE_NODE || leftNode->semantic_value.exprSemanticValue.isConstEval == 1) && 
-            (rightNode->nodeType == CONST_VALUE_NODE || rightNode->semantic_value.exprSemanticValue.isConstEval == 1)){
+    else if(leftNode->nodeType == CONST_VALUE_NODE && rightNode->nodeType == CONST_VALUE_NODE){
         int *livalue = NULL;
         int *rivalue = NULL;
         double *lfvalue = NULL;
         double *rfvalue = NULL;
-        exprNode->semantic_value.exprSemanticValue.isConstEval = 1;
         getExprOrConstValue(leftNode, &livalue, &lfvalue);
         getExprOrConstValue(rightNode, &rivalue, &rfvalue);
+        exprNode->nodeType = CONST_VALUE_NODE;
+        CON_Type *constInfo = (CON_Type *)malloc(sizeof(CON_Type));
         // both integer
         if(livalue && rivalue){
             if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_ADD)
-                exprNode->semantic_value.exprSemanticValue.constEvalValue.iValue = *livalue + *rivalue;
+                constInfo->const_u.intval = *livalue + *rivalue;
             else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_SUB)
-                exprNode->semantic_value.exprSemanticValue.constEvalValue.iValue = *livalue - *rivalue;
+                constInfo->const_u.intval = *livalue - *rivalue;
             else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_MUL)
-                exprNode->semantic_value.exprSemanticValue.constEvalValue.iValue = *livalue * *rivalue;
+                constInfo->const_u.intval = *livalue * *rivalue;
             else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_DIV)
-                exprNode->semantic_value.exprSemanticValue.constEvalValue.iValue = *livalue / *rivalue;
+                constInfo->const_u.intval = *livalue / *rivalue;
+            constInfo->const_type = INTEGERC;
+            exprNode->semantic_value.const1 = constInfo;
             exprNode->dataType = INT_TYPE;
         }
         // left integer, right float
         else if(livalue && rfvalue){
             if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_ADD)
-                exprNode->semantic_value.exprSemanticValue.constEvalValue.fValue = (double)*livalue + *rfvalue;
+                constInfo->const_u.fval = (double)*livalue + *rfvalue;
             else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_SUB)
-                exprNode->semantic_value.exprSemanticValue.constEvalValue.fValue = (double)*livalue - *rfvalue;
+                constInfo->const_u.fval = (double)*livalue - *rfvalue;
             else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_MUL)
-                exprNode->semantic_value.exprSemanticValue.constEvalValue.fValue = (double)*livalue * *rfvalue;
+                constInfo->const_u.fval = (double)*livalue * *rfvalue;
             else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_DIV)
-                exprNode->semantic_value.exprSemanticValue.constEvalValue.fValue = (double)*livalue / *rfvalue;
+                constInfo->const_u.fval = (double)*livalue / *rfvalue;
+            constInfo->const_type = FLOATC;
+            exprNode->semantic_value.const1 = constInfo;
             exprNode->dataType = FLOAT_TYPE;
         }
         // left float, right integer
         else if(lfvalue && rivalue){
             if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_ADD)
-                exprNode->semantic_value.exprSemanticValue.constEvalValue.fValue = *lfvalue + (double)*rivalue;
+                constInfo->const_u.fval = *lfvalue + (double)*rivalue;
             else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_SUB)
-                exprNode->semantic_value.exprSemanticValue.constEvalValue.fValue = *lfvalue - (double)*rivalue;
+                constInfo->const_u.fval = *lfvalue - (double)*rivalue;
             else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_MUL)
-                exprNode->semantic_value.exprSemanticValue.constEvalValue.fValue = *lfvalue * (double)*rivalue;
+                constInfo->const_u.fval = *lfvalue * (double)*rivalue;
             else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_DIV)
-                exprNode->semantic_value.exprSemanticValue.constEvalValue.fValue = *lfvalue / (double)*rivalue;
+                constInfo->const_u.fval = *lfvalue / (double)*rivalue;
+            constInfo->const_type = FLOATC;
+            exprNode->semantic_value.const1 = constInfo;
             exprNode->dataType = FLOAT_TYPE;
         }
         // both float
         else{
             if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_ADD)
-                exprNode->semantic_value.exprSemanticValue.constEvalValue.fValue = *lfvalue + *rfvalue;
+                constInfo->const_u.fval = *lfvalue + *rfvalue;
             else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_SUB)
-                exprNode->semantic_value.exprSemanticValue.constEvalValue.fValue = *lfvalue - *rfvalue;
+                constInfo->const_u.fval = *lfvalue - *rfvalue;
             else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_MUL)
-                exprNode->semantic_value.exprSemanticValue.constEvalValue.fValue = *lfvalue * *rfvalue;
+                constInfo->const_u.fval = *lfvalue * *rfvalue;
             else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_DIV)
-                exprNode->semantic_value.exprSemanticValue.constEvalValue.fValue = *lfvalue / *rfvalue;
+                constInfo->const_u.fval = *lfvalue / *rfvalue;
+            constInfo->const_type = FLOATC;
+            exprNode->semantic_value.const1 = constInfo;
             exprNode->dataType = FLOAT_TYPE;
         }
     }
