@@ -132,7 +132,7 @@ void printErrorMsg(AST_NODE* node, ErrorMsgKind errorMsgKind)
             printf("argument of write() is neither identifier nor constant string nor function call nor expression of above\n");
             break;
         case STRING_OPERATION:
-            printf("opeartion on string\n");
+            printf("invalid opeartion on string\n");
             break;
         case TYPEDEF_VOID_ARRAY:
             printf("array has incomplete element type \'void\'\n");
@@ -379,8 +379,7 @@ void declareVariable(AST_NODE *declarationNode){
                         symbolAttr->attr.typeDescriptor->kind = SCALAR_TYPE_DESCRIPTOR;
                         symbolAttr->attr.typeDescriptor->properties.dataType = dataType;
                         checkExprNode(exprNode);
-                        if(exprNode->nodeType == CONST_VALUE_NODE && exprNode->semantic_value.const1->const_type == STRINGC)
-                            printErrorMsg(declarationNode, STRING_OPERATION);
+                        isNotOperableOrInvalidExpr(exprNode);
                         // global declaration case
                         if(symbolTable.currentLevel == 0){
                             switch(exprNode->nodeType){
@@ -435,8 +434,7 @@ void declareVariable(AST_NODE *declarationNode){
                             symbolProperty->sizeInEachDimension[symbolProperty->dimension + i] = typeProperty->sizeInEachDimension[i];
                         symbolProperty->dimension += typeProperty->dimension;
                         checkExprNode(exprNode);
-                        if(exprNode->nodeType == CONST_VALUE_NODE && exprNode->semantic_value.const1->const_type == STRINGC)
-                            printErrorMsg(declarationNode, STRING_OPERATION);
+                        isNotOperableOrInvalidExpr(exprNode);
                         break;
                 }
             }
@@ -457,38 +455,50 @@ void getArrayDimensionAndSize(SymbolAttribute *symbolAttr, AST_NODE *idNode, int
         size[0] = IGNORE_DIMENSION;
     }
     while(arrayDimension != NULL){
-        switch(arrayDimension->nodeType){
-            case CONST_VALUE_NODE:
-                if(arrayDimension->semantic_value.const1->const_type != INTEGERC){
-                    printErrorMsgSpecial(idNode, name, ARRAY_SIZE_NOT_INT);
-                    size[nowDim] = FLOAT_DIMENSION;
-                }
-                else if(arrayDimension->semantic_value.const1->const_u.intval < 0){
+        checkExprNode(arrayDimension);
+        if(!(isNotOperableOrInvalidExpr(arrayDimension))){
+            if(arrayDimension->dataType == FLOAT_TYPE){
+                printErrorMsgSpecial(idNode, name, ARRAY_SIZE_NOT_INT);
+                size[nowDim] = FLOAT_DIMENSION;
+            }
+            else{
+                size[nowDim] = arrayDimension->semantic_value.const1->const_u.intval;
+                if(arrayDimension->semantic_value.const1->const_u.intval)
                     printErrorMsgSpecial(idNode, name, ARRAY_SIZE_NEGATIVE);
-                    size[nowDim] = arrayDimension->semantic_value.const1->const_u.intval;
-                }
-                else
-                    size[nowDim] = arrayDimension->semantic_value.const1->const_u.intval;
-                break;
-            case EXPR_NODE:
-                checkExprNode(arrayDimension);
-                //printf("getArrayDimensionAndSize: %d\n", arrayDimension->semantic_value.exprSemanticValue.constEvalValue.iValue);
-                if(arrayDimension->dataType == FLOAT_TYPE){
-                    printErrorMsgSpecial(idNode, name, ARRAY_SIZE_NOT_INT);
-                    size[nowDim] = FLOAT_DIMENSION;
-                }
-                else if(arrayDimension->semantic_value.exprSemanticValue.constEvalValue.iValue < 0){
-                    printErrorMsgSpecial(idNode, name, ARRAY_SIZE_NEGATIVE);
-                    size[nowDim] = arrayDimension->semantic_value.exprSemanticValue.constEvalValue.iValue;
-                }
-                else
-                    size[nowDim] = arrayDimension->semantic_value.exprSemanticValue.constEvalValue.iValue;
-                break;
-            default:
-                break;
+            }
         }
         nowDim++;
         arrayDimension = arrayDimension->rightSibling;
+        // switch(arrayDimension->nodeType){
+        //     case CONST_VALUE_NODE:
+        //         if(arrayDimension->semantic_value.const1->const_type != INTEGERC){
+        //             printErrorMsgSpecial(idNode, name, ARRAY_SIZE_NOT_INT);
+        //             size[nowDim] = FLOAT_DIMENSION;
+        //         }
+        //         else if(arrayDimension->semantic_value.const1->const_u.intval < 0){
+        //             printErrorMsgSpecial(idNode, name, ARRAY_SIZE_NEGATIVE);
+        //             size[nowDim] = arrayDimension->semantic_value.const1->const_u.intval;
+        //         }
+        //         else
+        //             size[nowDim] = arrayDimension->semantic_value.const1->const_u.intval;
+        //         break;
+        //     case EXPR_NODE:
+        //         checkExprNode(arrayDimension);
+        //         //printf("getArrayDimensionAndSize: %d\n", arrayDimension->semantic_value.exprSemanticValue.constEvalValue.iValue);
+        //         if(arrayDimension->dataType == FLOAT_TYPE){
+        //             printErrorMsgSpecial(idNode, name, ARRAY_SIZE_NOT_INT);
+        //             size[nowDim] = FLOAT_DIMENSION;
+        //         }
+        //         else if(arrayDimension->semantic_value.exprSemanticValue.constEvalValue.iValue < 0){
+        //             printErrorMsgSpecial(idNode, name, ARRAY_SIZE_NEGATIVE);
+        //             size[nowDim] = arrayDimension->semantic_value.exprSemanticValue.constEvalValue.iValue;
+        //         }
+        //         else
+        //             size[nowDim] = arrayDimension->semantic_value.exprSemanticValue.constEvalValue.iValue;
+        //         break;
+        //     default:
+        //         break;
+        // }
     }
     symbolAttr->attr.typeDescriptor->properties.arrayProperties.dimension = nowDim;
     return;
@@ -760,6 +770,7 @@ void checkIfStmt(AST_NODE* ifNode)
     AST_NODE *stmtNode = ifTest->rightSibling;
     checkExprNode(ifTest);
     checkStmtNode(stmtNode);
+    checkStmtNode(stmtNode->rightSibling);
 }
 
 void checkWriteFunction(AST_NODE* functionCallNode)
@@ -1105,7 +1116,7 @@ void evaluateExprValue(AST_NODE* exprNode)
     return;
 }
 
-int isNotOperable(AST_NODE *exprNode){
+int isNotOperableOrInvalidExpr(AST_NODE *exprNode){
     if(exprNode->dataType == INT_TYPE || exprNode->dataType == FLOAT_TYPE) return 0;
     switch(exprNode->dataType){
         case CONST_STRING_TYPE:
@@ -1192,7 +1203,7 @@ void checkExprNode(AST_NODE* exprNode)
         checkExprNode(leftNode);
         checkExprNode(rightNode);
         // value of relative expression: 0 or 1(integer)
-        if(isNotOperable(leftNode) || isNotOperable(rightNode))
+        if(isNotOperableOrInvalidExpr(leftNode) || isNotOperableOrInvalidExpr(rightNode))
             exprNode->dataType = ERROR_TYPE;
         else
             exprNode->dataType = INT_TYPE;
@@ -1208,7 +1219,7 @@ void checkExprNode(AST_NODE* exprNode)
     // unary operation
     else if(exprNode->semantic_value.exprSemanticValue.kind == UNARY_OPERATION){
         checkExprNode(leftNode);
-        if(isNotOperable(leftNode))
+        if(isNotOperableOrInvalidExpr(leftNode))
             exprNode->dataType = ERROR_TYPE;
         else
             evaluateExprValue(exprNode);
@@ -1227,7 +1238,7 @@ void checkExprNode(AST_NODE* exprNode)
     else{
         checkExprNode(leftNode);
         checkExprNode(rightNode);
-        if(isNotOperable(leftNode) || isNotOperable(rightNode))
+        if(isNotOperableOrInvalidExpr(leftNode) || isNotOperableOrInvalidExpr(rightNode))
             exprNode->dataType = ERROR_TYPE;
         else
             evaluateExprValue(exprNode);
@@ -1312,6 +1323,7 @@ void checkBlockNode(AST_NODE* blockNode)
 
 void checkStmtNode(AST_NODE* stmtNode)
 {
+    if(stmtNode == NULL) return;
     switch(stmtNode->nodeType){
         case BLOCK_NODE:
             openScope();
