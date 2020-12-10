@@ -39,6 +39,7 @@ void evaluateExprValue(AST_NODE* exprNode);
 int  isRelativeOperation(AST_NODE* exprRelatedNode);
 void checkArrayReference(AST_NODE* arrayReference, ArrayProperties property, int isLvalue);
 void initFunction();
+int isNotOperable(AST_NODE *exprNode);
 
 
 #endif

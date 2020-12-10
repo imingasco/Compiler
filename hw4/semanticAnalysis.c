@@ -685,21 +685,16 @@ void checkArrayReference(AST_NODE *idNode, ArrayProperties property, int isLvalu
         arrayDimension = arrayDimension->rightSibling;
         nowDimension++;
     }
+    if(idNode->dataType == ERROR_TYPE) return;
     if(nowDimension < property.dimension){
-        // assign to an array address error    
-        idNode->dataType = ERROR_TYPE;
-        if(idNode->parent->nodeType == NONEMPTY_RELOP_EXPR_LIST_NODE && \
-           idNode->parent->parent->nodeType == STMT_NODE && \
-           idNode->parent->parent->semantic_value.stmtSemanticValue.kind == FUNCTION_CALL_STMT){
-            // in parameter list
-            return;
-        }
-
+        // assign to an array address error
+        // idNode->dataType = ERROR_TYPE;
         if(isLvalue){
+            idNode->dataType = ERROR_TYPE;
             printErrorMsg(idNode, NOT_ASSIGNABLE);
         }
         else {
-            printErrorMsg(idNode, INCOMPATIBLE_ARRAY_DIMENSION);
+            idNode->dataType = property.elementType == INT_TYPE ? INT_PTR_TYPE : FLOAT_PTR_TYPE;
         }
     }
     else if(nowDimension > property.dimension){
@@ -1110,6 +1105,23 @@ void evaluateExprValue(AST_NODE* exprNode)
     return;
 }
 
+int isNotOperable(AST_NODE *exprNode){
+    if(exprNode->dataType == INT_TYPE || exprNode->dataType == FLOAT_TYPE) return 0;
+    switch(exprNode->dataType){
+        case CONST_STRING_TYPE:
+            printErrorMsg(exprNode, STRING_OPERATION);
+            break;
+        case VOID_TYPE:
+            printErrorMsgSpecial(exprNode, exprNode->semantic_value.identifierSemanticValue.identifierName, INVALID_OPERAND);
+            break;
+        case INT_PTR_TYPE: case FLOAT_PTR_TYPE:
+            printErrorMsg(exprNode, INCOMPATIBLE_ARRAY_DIMENSION);
+            break;
+        default:
+            break;
+    }
+    return 1;
+}
 
 void checkExprNode(AST_NODE* exprNode)
 {
@@ -1129,10 +1141,10 @@ void checkExprNode(AST_NODE* exprNode)
     else if(exprNode->nodeType == STMT_NODE && \
             exprNode->semantic_value.stmtSemanticValue.kind == FUNCTION_CALL_STMT){
         checkFunctionCall(exprNode);
-        if(exprNode->dataType == VOID_TYPE){
-            printErrorMsgSpecial(exprNode, exprNode->child->semantic_value.identifierSemanticValue.identifierName, INVALID_OPERAND);
-            exprNode->dataType = ERROR_TYPE;
-        }
+        // if(exprNode->dataType == VOID_TYPE){
+        //     printErrorMsgSpecial(exprNode, exprNode->child->semantic_value.identifierSemanticValue.identifierName, INVALID_OPERAND);
+        //     exprNode->dataType = ERROR_TYPE;
+        // }
         return;
     }
     // identifier node
@@ -1180,41 +1192,53 @@ void checkExprNode(AST_NODE* exprNode)
         checkExprNode(leftNode);
         checkExprNode(rightNode);
         // value of relative expression: 0 or 1(integer)
-        if(leftNode->dataType == CONST_STRING_TYPE || rightNode->dataType == CONST_STRING_TYPE){
-            exprNode->dataType = ERROR_TYPE;
-            printErrorMsg(exprNode, STRING_OPERATION);
-        }
-        else if(leftNode->dataType == ERROR_TYPE || rightNode->dataType == ERROR_TYPE)
+        if(isNotOperable(leftNode) || isNotOperable(rightNode))
             exprNode->dataType = ERROR_TYPE;
         else
             exprNode->dataType = INT_TYPE;
+        // if(leftNode->dataType == CONST_STRING_TYPE || rightNode->dataType == CONST_STRING_TYPE){
+        //     exprNode->dataType = ERROR_TYPE;
+        //     printErrorMsg(exprNode, STRING_OPERATION);
+        // }
+        // else if(leftNode->dataType == ERROR_TYPE || rightNode->dataType == ERROR_TYPE)
+        //     exprNode->dataType = ERROR_TYPE;
+        // else
+        //     exprNode->dataType = INT_TYPE;
     }
     // unary operation
     else if(exprNode->semantic_value.exprSemanticValue.kind == UNARY_OPERATION){
         checkExprNode(leftNode);
-        if(leftNode->dataType == CONST_STRING_TYPE){
+        if(isNotOperable(leftNode))
             exprNode->dataType = ERROR_TYPE;
-            printErrorMsg(exprNode, STRING_OPERATION);
-        }
-        else if(leftNode->dataType != ERROR_TYPE){
-            evaluateExprValue(exprNode);
-            //printf("checkExpr: %d\n", exprNode->semantic_value.exprSemanticValue.constEvalValue.iValue);
-        }
         else
-            exprNode->dataType = ERROR_TYPE;
+            evaluateExprValue(exprNode);
+        // if(leftNode->dataType == CONST_STRING_TYPE){
+        //     exprNode->dataType = ERROR_TYPE;
+        //     printErrorMsg(exprNode, STRING_OPERATION);
+        // }
+        // else if(leftNode->dataType != ERROR_TYPE){
+        //     evaluateExprValue(exprNode);
+        //     //printf("checkExpr: %d\n", exprNode->semantic_value.exprSemanticValue.constEvalValue.iValue);
+        // }
+        // else
+        //     exprNode->dataType = ERROR_TYPE;
     }
     // binary arithmetic operation, e.g, +, -, *, /
     else{
         checkExprNode(leftNode);
         checkExprNode(rightNode);
-        if(leftNode->dataType == CONST_STRING_TYPE || rightNode->dataType == CONST_STRING_TYPE){
+        if(isNotOperable(leftNode) || isNotOperable(rightNode))
             exprNode->dataType = ERROR_TYPE;
-            printErrorMsg(exprNode, STRING_OPERATION);
-        }
-        else if(leftNode->dataType != ERROR_TYPE && rightNode->dataType != ERROR_TYPE)
-            evaluateExprValue(exprNode);
         else
-            exprNode->dataType = ERROR_TYPE;
+            evaluateExprValue(exprNode);
+        // if(leftNode->dataType == CONST_STRING_TYPE || rightNode->dataType == CONST_STRING_TYPE){
+        //     exprNode->dataType = ERROR_TYPE;
+        //     printErrorMsg(exprNode, STRING_OPERATION);
+        // }
+        // else if(leftNode->dataType != ERROR_TYPE && rightNode->dataType != ERROR_TYPE)
+        //     evaluateExprValue(exprNode);
+        // else
+        //     exprNode->dataType = ERROR_TYPE;
     }
     return;
 }
