@@ -8,6 +8,9 @@ int g_anyErrorOccur = 0;
 
 #define FLOAT_DIMENSION -64
 #define IGNORE_DIMENSION -1
+#define INVALID_STRING_TYPE 1
+#define INVALID_VOID_TYPE 2
+#define INVALID_PTR_TYPE 4
 
 extern SymbolTable symbolTable;
 
@@ -379,7 +382,7 @@ void declareVariable(AST_NODE *declarationNode){
                         symbolAttr->attr.typeDescriptor->kind = SCALAR_TYPE_DESCRIPTOR;
                         symbolAttr->attr.typeDescriptor->properties.dataType = dataType;
                         checkExprNode(exprNode);
-                        isNotOperableOrInvalidExpr(exprNode);
+                        isNotOperableOrInvalidExpr(exprNode, INVALID_STRING_TYPE + INVALID_VOID_TYPE + INVALID_PTR_TYPE);
                         // global declaration case
                         if(symbolTable.currentLevel == 0){
                             switch(exprNode->nodeType){
@@ -434,7 +437,7 @@ void declareVariable(AST_NODE *declarationNode){
                             symbolProperty->sizeInEachDimension[symbolProperty->dimension + i] = typeProperty->sizeInEachDimension[i];
                         symbolProperty->dimension += typeProperty->dimension;
                         checkExprNode(exprNode);
-                        isNotOperableOrInvalidExpr(exprNode);
+                        isNotOperableOrInvalidExpr(exprNode, INVALID_STRING_TYPE + INVALID_VOID_TYPE + INVALID_PTR_TYPE);
                         break;
                 }
             }
@@ -456,7 +459,7 @@ void getArrayDimensionAndSize(SymbolAttribute *symbolAttr, AST_NODE *idNode, int
     }
     while(arrayDimension != NULL){
         checkExprNode(arrayDimension);
-        if(!(isNotOperableOrInvalidExpr(arrayDimension))){
+        if(!(isNotOperableOrInvalidExpr(arrayDimension, INVALID_STRING_TYPE))){
             if(arrayDimension->dataType == FLOAT_TYPE){
                 printErrorMsgSpecial(idNode, name, ARRAY_SIZE_NOT_INT);
                 size[nowDim] = FLOAT_DIMENSION;
@@ -633,6 +636,7 @@ void checkWhileStmt(AST_NODE* whileNode)
     AST_NODE *testExprRoot = whileNode->child;
     AST_NODE *stmtNode = testExprRoot->rightSibling;
     checkExprNode(testExprRoot);
+    isNotOperableOrInvalidExpr(testExprRoot, INVALID_PTR_TYPE + INVALID_VOID_TYPE);
     checkStmtNode(stmtNode);
 }
 
@@ -647,11 +651,17 @@ void checkForStmt(AST_NODE* forNode)
     AST_NODE *updateAssignExpr = updateAssignExprRoot->child;
     AST_NODE *stmtNode = updateAssignExprRoot->rightSibling;
     while(initAssignExpr){
-        checkAssignmentStmt(initAssignExpr);
+        if(initAssignExpr->nodeType == EXPR_NODE){
+            checkStmtNode(initAssignExpr);
+            isNotOperableOrInvalidExpr(initAssignExpr, INVALID_PTR_TYPE);
+        }
+        else
+            checkAssignmentStmt(initAssignExpr);
         initAssignExpr = initAssignExpr->rightSibling;
     }
     while(relopExpr){
         checkExprNode(relopExpr);
+        isNotOperableOrInvalidExpr(relopExpr, INVALID_PTR_TYPE);
         relopExpr = relopExpr->rightSibling;
     }
     while(updateAssignExpr){
@@ -754,6 +764,8 @@ void checkAssignmentStmt(AST_NODE* assignmentNode)
 
     // check relop on RHS of assignment
     checkExprNode(rightNode);
+    if(isNotOperableOrInvalidExpr(rightNode, INVALID_STRING_TYPE + INVALID_VOID_TYPE + INVALID_PTR_TYPE))
+        rightNode->dataType = ERROR_TYPE;
 
     // type conversion
     if(leftNode->dataType == ERROR_TYPE || rightNode->dataType == ERROR_TYPE)
@@ -769,6 +781,7 @@ void checkIfStmt(AST_NODE* ifNode)
     AST_NODE *ifTest = ifNode->child;
     AST_NODE *stmtNode = ifTest->rightSibling;
     checkExprNode(ifTest);
+    isNotOperableOrInvalidExpr(ifTest, INVALID_PTR_TYPE + INVALID_VOID_TYPE);
     checkStmtNode(stmtNode);
     checkStmtNode(stmtNode->rightSibling);
 }
@@ -1116,17 +1129,20 @@ void evaluateExprValue(AST_NODE* exprNode)
     return;
 }
 
-int isNotOperableOrInvalidExpr(AST_NODE *exprNode){
+int isNotOperableOrInvalidExpr(AST_NODE *exprNode, int invalidType){
     if(exprNode->dataType == INT_TYPE || exprNode->dataType == FLOAT_TYPE) return 0;
     switch(exprNode->dataType){
         case CONST_STRING_TYPE:
-            printErrorMsg(exprNode, STRING_OPERATION);
+            if(invalidType & INVALID_STRING_TYPE)
+                printErrorMsg(exprNode, STRING_OPERATION);
             break;
         case VOID_TYPE:
-            printErrorMsgSpecial(exprNode, exprNode->semantic_value.identifierSemanticValue.identifierName, INVALID_OPERAND);
+            if(invalidType & INVALID_VOID_TYPE)
+                printErrorMsgSpecial(exprNode, exprNode->semantic_value.identifierSemanticValue.identifierName, INVALID_OPERAND);
             break;
         case INT_PTR_TYPE: case FLOAT_PTR_TYPE:
-            printErrorMsg(exprNode, INCOMPATIBLE_ARRAY_DIMENSION);
+            if(invalidType & INVALID_PTR_TYPE)
+                printErrorMsg(exprNode, INCOMPATIBLE_ARRAY_DIMENSION);
             break;
         default:
             break;
