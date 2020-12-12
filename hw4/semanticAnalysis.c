@@ -1302,7 +1302,7 @@ void checkExprNode(AST_NODE* exprNode)
         if(isInvalidExpr(leftNode, invalidType) || isInvalidExpr(rightNode, invalidType))
             exprNode->dataType = ERROR_TYPE;
         else
-            exprNode->dataType = INT_TYPE;
+            evaluateExprValue(exprNode);
         // if(leftNode->dataType == CONST_STRING_TYPE || rightNode->dataType == CONST_STRING_TYPE){
         //     exprNode->dataType = ERROR_TYPE;
         //     printErrorMsg(exprNode, STRING_OPERATION);
