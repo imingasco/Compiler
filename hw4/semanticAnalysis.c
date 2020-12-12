@@ -1112,21 +1112,25 @@ int isInvalidExpr(AST_NODE *exprNode, int invalidType){
     if(exprNode->dataType == INT_TYPE || exprNode->dataType == FLOAT_TYPE) return 0;
     switch(exprNode->dataType){
         case CONST_STRING_TYPE:
-            if(invalidType & INVALID_STRING_TYPE)
+            if(invalidType & INVALID_STRING_TYPE){
                 printErrorMsg(exprNode, STRING_OPERATION);
-            break;
+                return 1;
+            }
         case VOID_TYPE:
-            if(invalidType & INVALID_VOID_TYPE)
+            if(invalidType & INVALID_VOID_TYPE){
                 printErrorMsgSpecial(exprNode, exprNode->child->semantic_value.identifierSemanticValue.identifierName, INVALID_OPERAND);
-            break;
+                return 1;
+            }
         case INT_PTR_TYPE: case FLOAT_PTR_TYPE:
-            if(invalidType & INVALID_PTR_TYPE)
+            if(invalidType & INVALID_PTR_TYPE){
                 printErrorMsg(exprNode, INCOMPATIBLE_ARRAY_DIMENSION);
-            break;
-        default:
+                return 1;
+            }
+        default: // ERROR_TYPE
+            return 1;
             break;
     }
-    return 1;
+    return 0;
 }
 
 void checkExprNode(AST_NODE* exprNode)
