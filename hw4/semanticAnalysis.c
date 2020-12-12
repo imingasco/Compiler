@@ -836,6 +836,7 @@ void checkFunctionCall(AST_NODE* functionCallNode)
     }
     while(paramNode != NULL){
         checkExprNode(paramNode);
+        // check invalid expr in checkParameterPassing
         paramNode = paramNode->rightSibling;
     }
     paramNode = idNode->rightSibling->child;
@@ -864,12 +865,47 @@ void getFormalParameterType(Parameter *formalParameter, char *formalParameterTyp
     }
 }
 
+void getActualParameterType(AST_NODE *actualParameter, char *actualParameterType){
+    DATA_TYPE dataType = actualParameter->dataType;
+    if(dataType == ERROR_TYPE)
+        strcpy(actualParameterType, "");
+    else if(dataType == INT_TYPE)
+        strcpy(actualParameterType, "int");
+    else if(dataType == FLOAT_TYPE)
+        strcpy(actualParameterType, "float");
+    else if(dataType == VOID_TYPE)
+        strcpy(actualParameterType, "void");
+    else if(dataType == CONST_STRING_TYPE)
+        strcpy(actualParameterType, "char (*)");
+    else{
+        if(dataType == INT_PTR_TYPE)
+            strcpy(actualParameterType, "int (*)");
+        else
+            strcpy(actualParameterType, "float (*)");
+        SymbolTableEntry *idEntry = retrieveSymbol(actualParameter->semantic_value.identifierSemanticValue.identifierName);
+        TypeDescriptor *typeDescriptor = idEntry->attribute->attr.typeDescriptor;
+        int dimCount = 0;
+        AST_NODE *dimReference = actualParameter->child;
+        while(dimReference != NULL){
+            dimReference = dimReference->rightSibling;
+            dimCount += 1;
+        }
+        dimCount += 1;
+        for(int i = dimCount; i < typeDescriptor->properties.arrayProperties.dimension; i++){
+            char dim[MSG_LEN];
+            sprintf(dim, "[%d]", typeDescriptor->properties.arrayProperties.sizeInEachDimension[i]);
+            strcat(actualParameterType, dim);
+        }
+    }
+}
+
 void checkParameterPassing(Parameter* formalParameter, AST_NODE* actualParameter, AST_NODE *idNode)
 {
     while(formalParameter != NULL && actualParameter != NULL){
         char formalParameterType[MSG_LEN], actualParameterType[MSG_LEN];
         getFormalParameterType(formalParameter, formalParameterType);
-        printf("%s\n", formalParameterType);
+        getActualParameterType(actualParameter, actualParameterType);
+        printf("%s\n", actualParameterType);
         formalParameter = formalParameter->next;
         actualParameter = actualParameter->rightSibling;
     }
