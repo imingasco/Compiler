@@ -243,6 +243,21 @@ void initFunction(){
     symbolAttr->attr.functionSignature->parameterList = NULL;
     symbolAttr->attr.functionSignature->returnType = FLOAT_TYPE;
     enterSymbol("fread", symbolAttr);
+    // enter write() entry
+    symbolAttr = (SymbolAttribute *)malloc(sizeof(SymbolAttribute));
+    symbolAttr->attributeKind = FUNCTION_SIGNATURE;
+    symbolAttr->attr.functionSignature = (FunctionSignature *)malloc(sizeof(FunctionSignature));
+    symbolAttr->attr.functionSignature->parametersCount = 1;
+    symbolAttr->attr.functionSignature->parameterList = (Parameter *)malloc(sizeof(Parameter));
+    symbolAttr->attr.functionSignature->parameterList->next = NULL;
+    symbolAttr->attr.functionSignature->parameterList->parameterName = NULL;
+    symbolAttr->attr.functionSignature->parameterList->type = (TypeDescriptor *)malloc(sizeof(TypeDescriptor));
+    symbolAttr->attr.functionSignature->parameterList->type->kind = ARRAY_TYPE_DESCRIPTOR;
+    symbolAttr->attr.functionSignature->parameterList->type->properties.arrayProperties.dimension = 1;
+    symbolAttr->attr.functionSignature->parameterList->type->properties.arrayProperties.elementType = CONST_STRING_TYPE;
+    symbolAttr->attr.functionSignature->parameterList->type->properties.arrayProperties.sizeInEachDimension[0] = IGNORE_DIMENSION;
+    symbolAttr->attr.functionSignature->returnType = VOID_TYPE;
+    enterSymbol("write", symbolAttr);
     return;
 }
 
@@ -789,29 +804,29 @@ void checkIfStmt(AST_NODE* ifNode)
     checkStmtNode(stmtNode->rightSibling);
 }
 
-void checkWriteFunction(AST_NODE* functionCallNode)
-{
-    // check if there is one argument
-    AST_NODE *toWrite = functionCallNode->child->rightSibling->child;
-    if(toWrite == NULL){
-        printErrorMsgSpecial(functionCallNode, "write", TOO_FEW_ARGUMENTS);
-        return;
-    }
-    // check if there are more arguments
-    AST_NODE *shouldNull = toWrite->rightSibling;
-    if(shouldNull != NULL)
-        printErrorMsgSpecial(functionCallNode, "write", TOO_MANY_ARGUMENTS);
+// void checkWriteFunction(AST_NODE* functionCallNode)
+// {
+//     // check if there is one argument
+//     AST_NODE *toWrite = functionCallNode->child->rightSibling->child;
+//     if(toWrite == NULL){
+//         printErrorMsgSpecial(functionCallNode, "write", TOO_FEW_ARGUMENTS);
+//         return;
+//     }
+//     // check if there are more arguments
+//     AST_NODE *shouldNull = toWrite->rightSibling;
+//     if(shouldNull != NULL)
+//         printErrorMsgSpecial(functionCallNode, "write", TOO_MANY_ARGUMENTS);
 
-    checkExprNode(toWrite);
-    // write a constant, should be string
-    if(toWrite->nodeType == CONST_VALUE_NODE && toWrite->dataType != CONST_STRING_TYPE)
-        printErrorMsg(functionCallNode, NOT_WRITABLE);
-    // write an constant expression, invalid
-    else if(toWrite->nodeType == EXPR_NODE && toWrite->semantic_value.exprSemanticValue.isConstEval == 1)
-        printErrorMsg(functionCallNode, NOT_WRITABLE);
-    // others: write identifier & write function call(handled in checkExprNode)
-    return;
-}
+//     checkExprNode(toWrite);
+//     // write a constant, should be string
+//     if(toWrite->nodeType == CONST_VALUE_NODE && toWrite->dataType != CONST_STRING_TYPE)
+//         printErrorMsg(functionCallNode, NOT_WRITABLE);
+//     // write an constant expression, invalid
+//     else if(toWrite->nodeType == EXPR_NODE && toWrite->semantic_value.exprSemanticValue.isConstEval == 1)
+//         printErrorMsg(functionCallNode, NOT_WRITABLE);
+//     // others: write identifier & write function call(handled in checkExprNode)
+//     return;
+// }
 
 void checkFunctionCall(AST_NODE* functionCallNode)
 {
@@ -819,10 +834,10 @@ void checkFunctionCall(AST_NODE* functionCallNode)
     AST_NODE *paramNode = idNode->rightSibling->child;
     char *idName = idNode->semantic_value.identifierSemanticValue.identifierName;
     // special case: write function
-    if(strcmp(idName, "write") == 0){
-        checkWriteFunction(functionCallNode);
-        return;
-    }
+    // if(strcmp(idName, "write") == 0){
+    //     checkWriteFunction(functionCallNode);
+    //     return;
+    // }
 
     SymbolTableEntry *idEntry = retrieveSymbol(idName);
     if(idEntry == NULL){
@@ -858,8 +873,10 @@ void getFormalParameterType(Parameter *formalParameter, char *formalParameterTyp
     else{
         if(typeDescriptor->properties.arrayProperties.elementType == INT_TYPE)
             strcpy(formalParameterType, "int (*)");
-        else
+        else if(typeDescriptor->properties.arrayProperties.elementType == FLOAT_TYPE)
             strcpy(formalParameterType, "float (*)");
+        else
+            strcpy(formalParameterType, "char (*)");
         for(int i = 1; i < typeDescriptor->properties.arrayProperties.dimension; i++){
             char dim[MSG_LEN];
             sprintf(dim, "[%d]", typeDescriptor->properties.arrayProperties.sizeInEachDimension[i]);

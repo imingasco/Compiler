@@ -26,7 +26,7 @@ void checkWhileStmt(AST_NODE* whileNode);
 void checkForStmt(AST_NODE* forNode);
 void checkAssignmentStmt(AST_NODE* assignmentNode);
 void checkIfStmt(AST_NODE* ifNode);
-void checkWriteFunction(AST_NODE* functionCallNode);
+//void checkWriteFunction(AST_NODE* functionCallNode);
 void checkFunctionCall(AST_NODE* functionCallNode);
 void checkParameterPassing(Parameter* formalParameter, AST_NODE* actualParameter, AST_NODE *idNode);
 void checkReturnStmt(AST_NODE* returnNode);
