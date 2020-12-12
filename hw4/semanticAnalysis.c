@@ -775,6 +775,18 @@ void checkAssignmentStmt(AST_NODE* assignmentNode)
     checkExprNode(rightNode);
     if(isInvalidExpr(rightNode, INVALID_STRING_TYPE + INVALID_VOID_TYPE + INVALID_PTR_TYPE))
         rightNode->dataType = ERROR_TYPE;
+    /*
+    if(rightNode->nodeType == CONST_VALUE_NODE){
+        switch(rightNode->dataType){
+            case INT_TYPE:
+                printf("data: %d\n", rightNode->semantic_value.const1->const_u.intval);
+                break;
+            case FLOAT_TYPE:
+                printf("data: %f\n", rightNode->semantic_value.const1->const_u.fval);
+                break;
+        }
+    }
+    */
 
     // type conversion
     if(leftNode->dataType == ERROR_TYPE || rightNode->dataType == ERROR_TYPE)
@@ -1023,7 +1035,97 @@ void evaluateExprValue(AST_NODE* exprNode)
                 exprNode->dataType = leftNode->dataType;
         }
     }
-    // binary arithmetic opeartion, both side are constant evaluations
+    // binary logical operation
+    else if(isRelativeOperation(exprNode) && leftNode->nodeType == CONST_VALUE_NODE && rightNode->nodeType == CONST_VALUE_NODE){
+        int *livalue = NULL;
+        int *rivalue = NULL;
+        double *lfvalue = NULL;
+        double *rfvalue = NULL;
+        getExprOrConstValue(leftNode, &livalue, &lfvalue);
+        getExprOrConstValue(rightNode, &rivalue, &rfvalue);
+        exprNode->nodeType = CONST_VALUE_NODE;
+        CON_Type *constInfo = (CON_Type *)malloc(sizeof(CON_Type));
+        // both integer
+        if(livalue && rivalue){
+            if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_EQ)
+                constInfo->const_u.intval = *livalue == *rivalue;
+            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_GE)
+                constInfo->const_u.intval = *livalue >= *rivalue;
+            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_LE)
+                constInfo->const_u.intval = *livalue <= *rivalue;
+            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_NE)
+                constInfo->const_u.intval = *livalue != *rivalue;
+            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_GT)
+                constInfo->const_u.intval = *livalue > *rivalue;
+            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_LT)
+                constInfo->const_u.intval = *livalue < *rivalue;
+            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_AND)
+                constInfo->const_u.intval = *livalue && *rivalue;
+            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_OR)
+                constInfo->const_u.intval = *livalue || *rivalue;
+        }
+        // left integer, right float
+        else if(livalue && rfvalue){
+            if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_EQ)
+                constInfo->const_u.intval = (double)(*livalue) == *rfvalue;
+            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_GE)
+                constInfo->const_u.intval = (double)(*livalue) >= *rfvalue;
+            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_LE)
+                constInfo->const_u.intval = (double)(*livalue) <= *rfvalue;
+            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_NE)
+                constInfo->const_u.intval = (double)(*livalue) != *rfvalue;
+            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_GT)
+                constInfo->const_u.intval = (double)(*livalue) > *rfvalue;
+            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_LT)
+                constInfo->const_u.intval = (double)(*livalue) < *rfvalue;
+            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_AND)
+                constInfo->const_u.intval = (double)(*livalue) && *rfvalue;
+            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_OR)
+                constInfo->const_u.intval = (double)(*livalue) || *rfvalue;
+        }
+        // left float, right integer
+        else if(lfvalue && rivalue){
+            if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_EQ)
+                constInfo->const_u.intval = *lfvalue == (double)(*rivalue);
+            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_GE)
+                constInfo->const_u.intval = *lfvalue >= (double)(*rivalue);
+            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_LE)
+                constInfo->const_u.intval = *lfvalue <= (double)(*rivalue);
+            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_NE)
+                constInfo->const_u.intval = *lfvalue != (double)(*rivalue);
+            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_GT)
+                constInfo->const_u.intval = *lfvalue > (double)(*rivalue);
+            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_LT)
+                constInfo->const_u.intval = *lfvalue < (double)(*rivalue);
+            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_AND)
+                constInfo->const_u.intval = *lfvalue && (double)(*rivalue);
+            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_OR)
+                constInfo->const_u.intval = *lfvalue || (double)(*rivalue);
+        }
+        // both float
+        else{
+            if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_EQ)
+                constInfo->const_u.intval = *lfvalue == *rfvalue;
+            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_GE)
+                constInfo->const_u.intval = *lfvalue >= *rfvalue;
+            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_LE)
+                constInfo->const_u.intval = *lfvalue <= *rfvalue;
+            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_NE)
+                constInfo->const_u.intval = *lfvalue != *rfvalue;
+            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_GT)
+                constInfo->const_u.intval = *lfvalue > *rfvalue;
+            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_LT)
+                constInfo->const_u.intval = *lfvalue < *rfvalue;
+            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_AND)
+                constInfo->const_u.intval = *lfvalue && *rfvalue;
+            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_OR)
+                constInfo->const_u.intval = *lfvalue || *rfvalue;
+        }
+        constInfo->const_type = INTEGERC;
+        exprNode->semantic_value.const1 = constInfo;
+        exprNode->dataType = INT_TYPE;
+    }
+    // binary arithmetic operation, both side are constant evaluations
     else if(leftNode->nodeType == CONST_VALUE_NODE && rightNode->nodeType == CONST_VALUE_NODE){
         int *livalue = NULL;
         int *rivalue = NULL;
