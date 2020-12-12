@@ -106,6 +106,9 @@ void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKin
         case CONFLICT_TYPE:
             printf("conflicting types for \'%s\'\n", name2);
             break;
+        case PARAMETER_TYPE_UNMATCH:
+            printf("invalid conversion from %s\n", name2);
+            break;
             /*
         default:
             printf("Unhandled case in void printErrorMsg(AST_NODE* node, ERROR_MSG_KIND* errorMsgKind)\n");
@@ -466,7 +469,7 @@ void getArrayDimensionAndSize(SymbolAttribute *symbolAttr, AST_NODE *idNode, int
             }
             else{
                 size[nowDim] = arrayDimension->semantic_value.const1->const_u.intval;
-                if(arrayDimension->semantic_value.const1->const_u.intval)
+                if(arrayDimension->semantic_value.const1->const_u.intval < 0)
                     printErrorMsgSpecial(idNode, name, ARRAY_SIZE_NEGATIVE);
             }
         }
@@ -905,7 +908,14 @@ void checkParameterPassing(Parameter* formalParameter, AST_NODE* actualParameter
         char formalParameterType[MSG_LEN], actualParameterType[MSG_LEN];
         getFormalParameterType(formalParameter, formalParameterType);
         getActualParameterType(actualParameter, actualParameterType);
-        printf("%s\n", actualParameterType);
+        if((strcmp(formalParameterType, "int") != 0 && strcmp(formalParameterType, "float") != 0) || \
+            (strcmp(actualParameterType, "int") != 0 && strcmp(actualParameterType, "float") != 0)){
+                if(actualParameter->dataType != ERROR_TYPE && strcmp(formalParameterType, actualParameterType) != 0){
+                    char errMsg[ERR_MSG_LEN];
+                    sprintf(errMsg, "\'%s\' to \'%s\'", actualParameterType, formalParameterType);
+                    printErrorMsgSpecial(idNode, errMsg, PARAMETER_TYPE_UNMATCH);
+                }
+        }
         formalParameter = formalParameter->next;
         actualParameter = actualParameter->rightSibling;
     }
