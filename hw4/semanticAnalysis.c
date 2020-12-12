@@ -670,7 +670,7 @@ void checkForStmt(AST_NODE* forNode)
     AST_NODE *stmtNode = updateAssignExprRoot->rightSibling;
     while(initAssignExpr){
         if(initAssignExpr->nodeType == EXPR_NODE){
-            checkStmtNode(initAssignExpr);
+            checkExprNode(initAssignExpr);
             isInvalidExpr(initAssignExpr, INVALID_PTR_TYPE);
         }
         else
@@ -683,7 +683,12 @@ void checkForStmt(AST_NODE* forNode)
         relopExpr = relopExpr->rightSibling;
     }
     while(updateAssignExpr){
-        checkAssignmentStmt(updateAssignExpr);
+        if(updateAssignExpr->nodeType == EXPR_NODE){
+            checkExprNode(updateAssignExpr);
+            isInvalidExpr(updateAssignExpr, INVALID_PTR_TYPE);
+        }
+        else
+            checkAssignmentStmt(updateAssignExpr);
         updateAssignExpr = updateAssignExpr->rightSibling;
     }
     checkStmtNode(stmtNode);
