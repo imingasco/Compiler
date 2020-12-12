@@ -26,7 +26,7 @@ void checkWhileStmt(AST_NODE* whileNode);
 void checkForStmt(AST_NODE* forNode);
 void checkAssignmentStmt(AST_NODE* assignmentNode);
 void checkIfStmt(AST_NODE* ifNode);
-void checkWriteFunction(AST_NODE* functionCallNode);
+//void checkWriteFunction(AST_NODE* functionCallNode);
 void checkFunctionCall(AST_NODE* functionCallNode);
 void checkParameterPassing(Parameter* formalParameter, AST_NODE* actualParameter, AST_NODE *idNode);
 void checkReturnStmt(AST_NODE* returnNode);
@@ -39,6 +39,8 @@ void evaluateExprValue(AST_NODE* exprNode);
 int  isRelativeOperation(AST_NODE* exprRelatedNode);
 void checkArrayReference(AST_NODE* arrayReference, ArrayProperties property, int isLvalue);
 void initFunction();
-
+int isInvalidExpr(AST_NODE *exprNode, int invalidType);
+void getFormalParameterType(Parameter *formalParameter, char *formalParameterType);
+void getActualParameterType(AST_NODE *actualParameter, char *actualParameterType);
 
 #endif
