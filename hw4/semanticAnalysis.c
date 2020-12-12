@@ -382,7 +382,7 @@ void declareVariable(AST_NODE *declarationNode){
                         symbolAttr->attr.typeDescriptor->kind = SCALAR_TYPE_DESCRIPTOR;
                         symbolAttr->attr.typeDescriptor->properties.dataType = dataType;
                         checkExprNode(exprNode);
-                        isNotOperableOrInvalidExpr(exprNode, INVALID_STRING_TYPE + INVALID_VOID_TYPE + INVALID_PTR_TYPE);
+                        isInvalidExpr(exprNode, INVALID_STRING_TYPE + INVALID_VOID_TYPE + INVALID_PTR_TYPE);
                         // global declaration case
                         if(symbolTable.currentLevel == 0){
                             switch(exprNode->nodeType){
@@ -437,7 +437,7 @@ void declareVariable(AST_NODE *declarationNode){
                             symbolProperty->sizeInEachDimension[symbolProperty->dimension + i] = typeProperty->sizeInEachDimension[i];
                         symbolProperty->dimension += typeProperty->dimension;
                         checkExprNode(exprNode);
-                        isNotOperableOrInvalidExpr(exprNode, INVALID_STRING_TYPE + INVALID_VOID_TYPE + INVALID_PTR_TYPE);
+                        isInvalidExpr(exprNode, INVALID_STRING_TYPE + INVALID_VOID_TYPE + INVALID_PTR_TYPE);
                         break;
                 }
             }
@@ -459,7 +459,7 @@ void getArrayDimensionAndSize(SymbolAttribute *symbolAttr, AST_NODE *idNode, int
     }
     while(arrayDimension != NULL){
         checkExprNode(arrayDimension);
-        if(!(isNotOperableOrInvalidExpr(arrayDimension, INVALID_STRING_TYPE))){
+        if(!(isInvalidExpr(arrayDimension, INVALID_STRING_TYPE))){
             if(arrayDimension->dataType == FLOAT_TYPE){
                 printErrorMsgSpecial(idNode, name, ARRAY_SIZE_NOT_INT);
                 size[nowDim] = FLOAT_DIMENSION;
@@ -636,7 +636,7 @@ void checkWhileStmt(AST_NODE* whileNode)
     AST_NODE *testExprRoot = whileNode->child;
     AST_NODE *stmtNode = testExprRoot->rightSibling;
     checkExprNode(testExprRoot);
-    isNotOperableOrInvalidExpr(testExprRoot, INVALID_PTR_TYPE + INVALID_VOID_TYPE);
+    isInvalidExpr(testExprRoot, INVALID_PTR_TYPE + INVALID_VOID_TYPE);
     checkStmtNode(stmtNode);
 }
 
@@ -653,7 +653,7 @@ void checkForStmt(AST_NODE* forNode)
     while(initAssignExpr){
         if(initAssignExpr->nodeType == EXPR_NODE){
             checkStmtNode(initAssignExpr);
-            isNotOperableOrInvalidExpr(initAssignExpr, INVALID_PTR_TYPE);
+            isInvalidExpr(initAssignExpr, INVALID_PTR_TYPE);
         }
         else
             checkAssignmentStmt(initAssignExpr);
@@ -661,7 +661,7 @@ void checkForStmt(AST_NODE* forNode)
     }
     while(relopExpr){
         checkExprNode(relopExpr);
-        isNotOperableOrInvalidExpr(relopExpr, INVALID_PTR_TYPE);
+        isInvalidExpr(relopExpr, INVALID_PTR_TYPE);
         relopExpr = relopExpr->rightSibling;
     }
     while(updateAssignExpr){
@@ -764,7 +764,7 @@ void checkAssignmentStmt(AST_NODE* assignmentNode)
 
     // check relop on RHS of assignment
     checkExprNode(rightNode);
-    if(isNotOperableOrInvalidExpr(rightNode, INVALID_STRING_TYPE + INVALID_VOID_TYPE + INVALID_PTR_TYPE))
+    if(isInvalidExpr(rightNode, INVALID_STRING_TYPE + INVALID_VOID_TYPE + INVALID_PTR_TYPE))
         rightNode->dataType = ERROR_TYPE;
 
     // type conversion
@@ -781,7 +781,7 @@ void checkIfStmt(AST_NODE* ifNode)
     AST_NODE *ifTest = ifNode->child;
     AST_NODE *stmtNode = ifTest->rightSibling;
     checkExprNode(ifTest);
-    isNotOperableOrInvalidExpr(ifTest, INVALID_PTR_TYPE + INVALID_VOID_TYPE);
+    isInvalidExpr(ifTest, INVALID_PTR_TYPE + INVALID_VOID_TYPE);
     checkStmtNode(stmtNode);
     checkStmtNode(stmtNode->rightSibling);
 }
@@ -843,117 +843,33 @@ void checkFunctionCall(AST_NODE* functionCallNode)
     functionCallNode->dataType = idEntry->attribute->attr.functionSignature->returnType;
 }
 
+void getFormalParameterType(Parameter *formalParameter, char *formalParameterType){
+    TypeDescriptor *typeDescriptor = formalParameter->type;
+    if(typeDescriptor->kind == SCALAR_TYPE_DESCRIPTOR){
+        if(typeDescriptor->properties.dataType == INT_TYPE)
+            strcpy(formalParameterType, "int");
+        else
+            strcpy(formalParameterType, "float");
+    }
+    else{
+        if(typeDescriptor->properties.arrayProperties.elementType == INT_TYPE)
+            strcpy(formalParameterType, "int (*)");
+        else
+            strcpy(formalParameterType, "float (*)");
+        for(int i = 1; i < typeDescriptor->properties.arrayProperties.dimension; i++){
+            char dim[MSG_LEN];
+            sprintf(dim, "[%d]", typeDescriptor->properties.arrayProperties.sizeInEachDimension[i]);
+            strcat(formalParameterType, dim);
+        }
+    }
+}
+
 void checkParameterPassing(Parameter* formalParameter, AST_NODE* actualParameter, AST_NODE *idNode)
 {
     while(formalParameter != NULL && actualParameter != NULL){
-        if(formalParameter->type->kind == SCALAR_TYPE_DESCRIPTOR){
-            char errMsg[ERR_MSG_LEN];
-            char *formalParameterType = formalParameter->type->properties.dataType == INT_TYPE ? "\'int\'" : "\'float\'";
-            switch(actualParameter->dataType){
-                case INT_TYPE: case FLOAT_TYPE:
-                    // valid
-                    break;
-                case CONST_STRING_TYPE:
-                    // error : passing char* to a scalar
-                    sprintf(errMsg, "\'char *\' to %s", formalParameterType);
-                    printErrorMsgSpecial(idNode, errMsg, PASS_ARRAY_TO_SCALAR);
-                    break;
-                case ERROR_TYPE:
-                    if(actualParameter->nodeType == IDENTIFIER_NODE){
-                        SymbolTableEntry *idEntry = retrieveSymbol(actualParameter->semantic_value.identifierSemanticValue.identifierName);
-                        if(idEntry != NULL && idEntry->attribute->attributeKind == VARIABLE_ATTRIBUTE && \
-                            idEntry->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR){
-                            ArrayProperties arrayProperties = idEntry->attribute->attr.typeDescriptor->properties.arrayProperties;
-                            AST_NODE *arrayDimension = actualParameter->child;
-                            int cnt = 0;
-                            while(arrayDimension != NULL){
-                                cnt += 1;
-                                arrayDimension = arrayDimension->rightSibling;
-                            }
-                            if(cnt < arrayProperties.dimension){
-                                char *actualParameterType = arrayProperties.elementType == INT_TYPE ? "\'int (*)" : "\'float (*)";
-                                strcpy(errMsg, actualParameterType);
-                                cnt += 1; // it's a pointer
-                                while(cnt < arrayProperties.dimension){
-                                    char dimensionSize[MSG_LEN];
-                                    sprintf(dimensionSize, "[%d]", arrayProperties.sizeInEachDimension[cnt]);
-                                    strcat(errMsg, dimensionSize);
-                                    cnt += 1;
-                                }
-                                strcat(errMsg, "\' to ");
-                                strcat(errMsg, formalParameterType);
-                                printErrorMsgSpecial(idNode, errMsg, PASS_ARRAY_TO_SCALAR);
-                            }
-                        }
-                    }
-                    break;
-            }
-        }
-        else{
-            char errMsg[ERR_MSG_LEN];
-            char formalParameterType[MSG_LEN];
-            ArrayProperties formalArrayProperties = formalParameter->type->properties.arrayProperties;
-            strcpy(formalParameterType, formalArrayProperties.elementType == INT_TYPE ? "\'int (*)" : "\'float(*)");
-            int formalDimCnt = 1;
-            while(formalDimCnt < formalArrayProperties.dimension){
-                char dimensionSize[MSG_LEN];
-                sprintf(dimensionSize, "[%d]", formalArrayProperties.sizeInEachDimension[formalDimCnt]);
-                strcat(formalParameterType, dimensionSize);
-                formalDimCnt += 1;
-            }
-            strcat(formalParameterType, "\'");
-            switch (actualParameter->dataType){
-                case INT_TYPE:
-                    sprintf(errMsg, "\'int\' to %s", formalParameterType);
-                    printErrorMsgSpecial(idNode, errMsg, PASS_SCALAR_TO_ARRAY);
-                    break;
-                case FLOAT_TYPE:
-                    sprintf(errMsg, "\'float\' to %s", formalParameterType);
-                    printErrorMsgSpecial(idNode, errMsg, PASS_SCALAR_TO_ARRAY);
-                    break;
-                case CONST_STRING_TYPE:
-                    // erro : passing char* to int* or float*
-                    break;
-                case ERROR_TYPE:
-                    if(actualParameter->nodeType == IDENTIFIER_NODE){
-                        SymbolTableEntry *idEntry = retrieveSymbol(actualParameter->semantic_value.identifierSemanticValue.identifierName);
-                        if(idEntry != NULL && idEntry->attribute->attributeKind == VARIABLE_ATTRIBUTE && \
-                            idEntry->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR){
-                            ArrayProperties actualArrayProperties = idEntry->attribute->attr.typeDescriptor->properties.arrayProperties;
-                            AST_NODE *actualArrayDimension = actualParameter->child;
-                            int actualDimCnt = 0;
-                            while(actualArrayDimension != NULL){
-                                actualDimCnt += 1;
-                                actualArrayDimension = actualArrayDimension->rightSibling;
-                            }
-                            if(actualDimCnt < actualArrayProperties.dimension){
-                                char actualParameterType[MSG_LEN];
-                                strcpy(actualParameterType, actualArrayProperties.elementType == INT_TYPE ? "\'int (*)" : "\'float (*)");
-                                int dimNotMatch = 0;
-                                actualDimCnt += 1; // it's a pointer
-                                formalDimCnt = 1;
-                                while(actualDimCnt < actualArrayProperties.dimension){
-                                    char dimensionSize[MSG_LEN];
-                                    sprintf(dimensionSize, "[%d]", actualArrayProperties.sizeInEachDimension[actualDimCnt]);
-                                    strcat(actualParameterType, dimensionSize);
-                                    if(formalDimCnt < formalArrayProperties.dimension){
-                                        dimNotMatch += (actualArrayProperties.sizeInEachDimension[actualDimCnt] != formalArrayProperties.sizeInEachDimension[formalDimCnt]);
-                                    }
-                                    actualDimCnt += 1;
-                                    formalDimCnt += 1;
-                                }
-                                dimNotMatch += (formalDimCnt != formalArrayProperties.dimension);
-                                strcat(actualParameterType, "\'");
-                                if(dimNotMatch){
-                                    sprintf(errMsg, "%s to %s", actualParameterType, formalParameterType);
-                                    printErrorMsgSpecial(idNode, errMsg, PASS_INCOMPATIBLE_DIMENSION);
-                                }
-                            }
-                        }
-                    }
-                    break;
-            }
-        }
+        char formalParameterType[MSG_LEN], actualParameterType[MSG_LEN];
+        getFormalParameterType(formalParameter, formalParameterType);
+        printf("%s\n", formalParameterType);
         formalParameter = formalParameter->next;
         actualParameter = actualParameter->rightSibling;
     }
@@ -1129,7 +1045,7 @@ void evaluateExprValue(AST_NODE* exprNode)
     return;
 }
 
-int isNotOperableOrInvalidExpr(AST_NODE *exprNode, int invalidType){
+int isInvalidExpr(AST_NODE *exprNode, int invalidType){
     if(exprNode->dataType == INT_TYPE || exprNode->dataType == FLOAT_TYPE) return 0;
     switch(exprNode->dataType){
         case CONST_STRING_TYPE:
@@ -1138,7 +1054,7 @@ int isNotOperableOrInvalidExpr(AST_NODE *exprNode, int invalidType){
             break;
         case VOID_TYPE:
             if(invalidType & INVALID_VOID_TYPE)
-                printErrorMsgSpecial(exprNode, exprNode->semantic_value.identifierSemanticValue.identifierName, INVALID_OPERAND);
+                printErrorMsgSpecial(exprNode, exprNode->child->semantic_value.identifierSemanticValue.identifierName, INVALID_OPERAND);
             break;
         case INT_PTR_TYPE: case FLOAT_PTR_TYPE:
             if(invalidType & INVALID_PTR_TYPE)
@@ -1214,12 +1130,13 @@ void checkExprNode(AST_NODE* exprNode)
     // nonterminal nodes
     AST_NODE *leftNode = exprNode->child;
     AST_NODE *rightNode = leftNode->rightSibling;
+    int invalidType = INVALID_VOID_TYPE + INVALID_STRING_TYPE + INVALID_PTR_TYPE;
     // relative operation, binary, e.g, a > 0, (a > 0 || b < 0)
     if(isRelativeOperation(exprNode)){
         checkExprNode(leftNode);
         checkExprNode(rightNode);
         // value of relative expression: 0 or 1(integer)
-        if(isNotOperableOrInvalidExpr(leftNode) || isNotOperableOrInvalidExpr(rightNode))
+        if(isInvalidExpr(leftNode, invalidType) || isInvalidExpr(rightNode, invalidType))
             exprNode->dataType = ERROR_TYPE;
         else
             exprNode->dataType = INT_TYPE;
@@ -1235,7 +1152,7 @@ void checkExprNode(AST_NODE* exprNode)
     // unary operation
     else if(exprNode->semantic_value.exprSemanticValue.kind == UNARY_OPERATION){
         checkExprNode(leftNode);
-        if(isNotOperableOrInvalidExpr(leftNode))
+        if(isInvalidExpr(leftNode, invalidType))
             exprNode->dataType = ERROR_TYPE;
         else
             evaluateExprValue(exprNode);
@@ -1254,7 +1171,7 @@ void checkExprNode(AST_NODE* exprNode)
     else{
         checkExprNode(leftNode);
         checkExprNode(rightNode);
-        if(isNotOperableOrInvalidExpr(leftNode) || isNotOperableOrInvalidExpr(rightNode))
+        if(isInvalidExpr(leftNode, invalidType) || isInvalidExpr(rightNode, invalidType))
             exprNode->dataType = ERROR_TYPE;
         else
             evaluateExprValue(exprNode);
@@ -1296,6 +1213,7 @@ void checkReturnStmt(AST_NODE* returnNode)
     AST_NODE *idNode = typeNode->rightSibling;
     char *functionName = idNode->semantic_value.identifierSemanticValue.identifierName;
     checkExprNode(returnItem);
+    isInvalidExpr(returnItem, INVALID_PTR_TYPE + INVALID_STRING_TYPE);
     if(typeNode->dataType != ERROR_TYPE){
         if(typeNode->dataType == VOID_TYPE && returnItem->nodeType != NUL_NODE){
             printErrorMsgSpecial(returnNode, functionName, RETURN_IN_VOID_FUNCTION);
