@@ -669,12 +669,12 @@ void checkForStmt(AST_NODE* forNode)
     AST_NODE *updateAssignExpr = updateAssignExprRoot->child;
     AST_NODE *stmtNode = updateAssignExprRoot->rightSibling;
     while(initAssignExpr){
-        if(initAssignExpr->nodeType == EXPR_NODE){
+        if(initAssignExpr->nodeType == STMT_NODE && initAssignExpr->semantic_value.stmtSemanticValue.kind == ASSIGN_STMT)
+            checkAssignmentStmt(initAssignExpr);
+        else{
             checkExprNode(initAssignExpr);
             isInvalidExpr(initAssignExpr, INVALID_PTR_TYPE);
         }
-        else
-            checkAssignmentStmt(initAssignExpr);
         initAssignExpr = initAssignExpr->rightSibling;
     }
     while(relopExpr){
@@ -683,12 +683,12 @@ void checkForStmt(AST_NODE* forNode)
         relopExpr = relopExpr->rightSibling;
     }
     while(updateAssignExpr){
-        if(updateAssignExpr->nodeType == EXPR_NODE){
+        if(updateAssignExpr->nodeType == STMT_NODE && updateAssignExpr->semantic_value.stmtSemanticValue.kind == ASSIGN_STMT)
+            checkAssignmentStmt(updateAssignExpr);
+        else{
             checkExprNode(updateAssignExpr);
             isInvalidExpr(updateAssignExpr, INVALID_PTR_TYPE);
         }
-        else
-            checkAssignmentStmt(updateAssignExpr);
         updateAssignExpr = updateAssignExpr->rightSibling;
     }
     checkStmtNode(stmtNode);
@@ -1121,16 +1121,19 @@ int isInvalidExpr(AST_NODE *exprNode, int invalidType){
                 printErrorMsg(exprNode, STRING_OPERATION);
                 return 1;
             }
+            break;
         case VOID_TYPE:
             if(invalidType & INVALID_VOID_TYPE){
                 printErrorMsgSpecial(exprNode, exprNode->child->semantic_value.identifierSemanticValue.identifierName, INVALID_OPERAND);
                 return 1;
             }
+            break;
         case INT_PTR_TYPE: case FLOAT_PTR_TYPE:
             if(invalidType & INVALID_PTR_TYPE){
                 printErrorMsg(exprNode, INCOMPATIBLE_ARRAY_DIMENSION);
                 return 1;
             }
+            break;
         default: // ERROR_TYPE
             return 1;
             break;
