@@ -809,6 +809,7 @@ void checkWriteFunction(AST_NODE* functionCallNode)
         printErrorMsgSpecial(functionCallNode, "write", TOO_MANY_ARGUMENTS);
 
     checkExprNode(toWrite);
+    isInvalidExpr(toWrite, INVALID_VOID_TYPE + INVALID_PTR_TYPE);
     // write a constant, should be string
     if(toWrite->nodeType == CONST_VALUE_NODE && toWrite->dataType != CONST_STRING_TYPE)
         printErrorMsg(functionCallNode, NOT_WRITABLE);
