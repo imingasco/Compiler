@@ -5,6 +5,7 @@ void h() { A = 100; }
 int h2() { A = A + 1; }
 int main() {
   int i, j, k, N;
+  int B[100];
 
   for (i = 0; i < 10; i = i + 1) { write("hi"); }
   for (i = 0; i < 10; i = i + 1);
@@ -34,7 +35,7 @@ int main() {
     A = A + 1; 
   }
 
-  for (; 1; ) {}
+  for (B[3] = h(); 1; B[5]) {}
 
   for (i = 0; f(i); i = g(i))
     i = !i;
