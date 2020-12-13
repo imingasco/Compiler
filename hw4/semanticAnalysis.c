@@ -80,7 +80,7 @@ void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKin
             printf("size of array %s is negative\n", name2);
             break;
         case ARRAY_SIZE_NOT_INT:
-            printf("size of array %s is not an integet\n", name2);
+            printf("size of array %s is not an integer\n", name2);
             break;
         case PASS_SCALAR_TO_ARRAY:
             printf("invalid conversion from %s\n", name2);
@@ -108,6 +108,9 @@ void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKin
             break;
         case PARAMETER_TYPE_UNMATCH:
             printf("invalid conversion from %s\n", name2);
+            break;
+        case SYMBOL_IS_NOT_TYPE:
+            printf("%s\n", name2);
             break;
             /*
         default:
@@ -277,8 +280,31 @@ void declareType(AST_NODE *declarationNode){
                 sprintf(errMsg, "\'typedef %s %s\'", typeNode->semantic_value.identifierSemanticValue.identifierName, idName);
                 printErrorMsgSpecial(declarationNode, errMsg, SYMBOL_REDECLARE);
             }
-            else
-                printErrorMsgSpecial(declarationNode, idName, CONFLICT_TYPE);
+            else{
+                SymbolTableEntry *typeEntry = typeNode->semantic_value.identifierSemanticValue.symbolTableEntry;
+                TypeDescriptor *typeDescriptor = typeEntry->attribute->attr.typeDescriptor;
+                TypeDescriptor *idDescriptor = idEntry->attribute->attr.typeDescriptor;
+                if(typeDescriptor->kind != idDescriptor->kind)
+                    printErrorMsgSpecial(declarationNode, idName, CONFLICT_TYPE);
+                else if(typeDescriptor->kind == SCALAR_TYPE_DESCRIPTOR && idDescriptor->kind == SCALAR_TYPE_DESCRIPTOR && \
+                        typeDescriptor->properties.dataType != idDescriptor->properties.dataType)
+                    printErrorMsgSpecial(declarationNode, idName, CONFLICT_TYPE);
+                // both array type
+                else{
+                    ArrayProperties typeProperty = typeDescriptor->properties.arrayProperties;
+                    ArrayProperties idProperty = idDescriptor->properties.arrayProperties;
+                    if(typeProperty.dimension != idProperty.dimension || typeProperty.elementType != idProperty.elementType)
+                        printErrorMsgSpecial(declarationNode, idName, CONFLICT_TYPE);
+                    else{
+                        for(int i = 0; i < typeProperty.dimension; i++){
+                            if(typeProperty.sizeInEachDimension[i] != idProperty.sizeInEachDimension[i]){
+                                printErrorMsgSpecial(declarationNode, idName, CONFLICT_TYPE);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
         }
         else{
             AST_NODE *dimensionNode = idNode->child;
