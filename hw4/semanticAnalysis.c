@@ -288,17 +288,20 @@ void declareType(AST_NODE *declarationNode){
                 SymbolTableEntry *typeEntry = typeNode->semantic_value.identifierSemanticValue.symbolTableEntry;
                 TypeDescriptor *typeDescriptor = typeEntry->attribute->attr.typeDescriptor;
                 TypeDescriptor *idDescriptor = idEntry->attribute->attr.typeDescriptor;
-                if(typeDescriptor->kind != idDescriptor->kind)
+                if(typeDescriptor->kind != idDescriptor->kind){
                     printErrorMsgSpecial(declarationNode, idName, CONFLICT_TYPE);
+                }
                 else if(typeDescriptor->kind == SCALAR_TYPE_DESCRIPTOR && idDescriptor->kind == SCALAR_TYPE_DESCRIPTOR && \
-                        typeDescriptor->properties.dataType != idDescriptor->properties.dataType)
+                        typeDescriptor->properties.dataType != idDescriptor->properties.dataType){
                     printErrorMsgSpecial(declarationNode, idName, CONFLICT_TYPE);
+                }
                 // both array type
-                else{
+                else if(typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR && idDescriptor->kind == ARRAY_TYPE_DESCRIPTOR){
                     ArrayProperties typeProperty = typeDescriptor->properties.arrayProperties;
                     ArrayProperties idProperty = idDescriptor->properties.arrayProperties;
-                    if(typeProperty.dimension != idProperty.dimension || typeProperty.elementType != idProperty.elementType)
+                    if(typeProperty.dimension != idProperty.dimension || typeProperty.elementType != idProperty.elementType){
                         printErrorMsgSpecial(declarationNode, idName, CONFLICT_TYPE);
+                    }
                     else{
                         for(int i = 0; i < typeProperty.dimension; i++){
                             if(typeProperty.sizeInEachDimension[i] != idProperty.sizeInEachDimension[i]){
