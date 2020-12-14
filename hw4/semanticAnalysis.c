@@ -889,12 +889,6 @@ void checkFunctionCall(AST_NODE* functionCallNode)
         printErrorMsgSpecial(functionCallNode, idName, NOT_FUNCTION_NAME);
         return;
     }
-    while(paramNode != NULL){
-        checkExprNode(paramNode);
-        // check invalid expr in checkParameterPassing
-        paramNode = paramNode->rightSibling;
-    }
-    paramNode = idNode->rightSibling->child;
     checkParameterPassing(idEntry->attribute->attr.functionSignature->parameterList, paramNode, idNode);
     functionCallNode->dataType = idEntry->attribute->attr.functionSignature->returnType;
 }
@@ -960,6 +954,7 @@ void checkParameterPassing(Parameter* formalParameter, AST_NODE* actualParameter
 {
     while(formalParameter != NULL && actualParameter != NULL){
         char formalParameterType[MSG_LEN], actualParameterType[MSG_LEN];
+        checkExprNode(actualParameter);
         getFormalParameterType(formalParameter, formalParameterType);
         getActualParameterType(actualParameter, actualParameterType);
         if((strcmp(formalParameterType, "int") != 0 && strcmp(formalParameterType, "float") != 0) || \
