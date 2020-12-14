@@ -31,6 +31,7 @@ typedef enum ErrorMsgKind
     RETURN_TYPE_UNMATCH,
     RETURN_IN_VOID_FUNCTION,
     INCOMPATIBLE_ARRAY_DIMENSION,
+    INVALID_ARRAY_POINTER,
     NOT_ASSIGNABLE,
     NOT_ARRAY,
     IS_TYPE_NOT_VARIABLE,
@@ -133,6 +134,9 @@ void printErrorMsg(AST_NODE* node, ErrorMsgKind errorMsgKind)
             break;
         case INCOMPATIBLE_ARRAY_DIMENSION:
             printf("subscripted value is neither array nor pointer nor vector\n");
+            break;
+        case INVALID_ARRAY_POINTER:
+            printf("pointer reference or operation is invalid\n");
             break;
         case ARRAY_SUBSCRIPT_NOT_INT:
             printf("array subscript is not an integer\n");
@@ -1242,7 +1246,7 @@ int isInvalidExpr(AST_NODE *exprNode, int invalidType){
             break;
         case INT_PTR_TYPE: case FLOAT_PTR_TYPE:
             if(invalidType & INVALID_PTR_TYPE){
-                printErrorMsg(exprNode, INCOMPATIBLE_ARRAY_DIMENSION);
+                printErrorMsg(exprNode, INVALID_ARRAY_POINTER);
                 return 1;
             }
             break;
