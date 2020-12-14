@@ -1,0 +1,12 @@
+Extra features:
+    - negative array dimension declaration
+    - calling non-callable objects
+    - non-constant global declarations
+    - re-declaration of typedefs
+    - void variable
+    - typedef void array
+    - void operation (e.g, a = 1 + f(), where f is a void function)
+    - string operation (e.g, a = 1 + "abc")
+    - write() arguments (allows only constant string, identifier or non-constant expression)
+    - void type in condition of if and while
+    - detail of unmatched type when passing parameters
