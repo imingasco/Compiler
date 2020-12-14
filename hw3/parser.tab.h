@@ -120,9 +120,9 @@
 typedef union YYSTYPE
 #line 112 "parser.y"
 {
-	char *lexeme;
-	CON_Type  *const1;
-	AST_NODE  *node;
+    char *lexeme;
+    CON_Type  *const1;
+    AST_NODE  *node;
 }
 /* Line 1529 of yacc.c.  */
 #line 129 "parser.tab.h"
