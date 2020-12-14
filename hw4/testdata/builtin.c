@@ -4,6 +4,7 @@ int h(int x, int y) { return x + y; }
 int p(int x) { return x * read(); }
 void output(float Z) { write(Z);}
 int main() {
+  int kk[10]; 
   int x;
   float y;
   write("hello world\n");
@@ -12,11 +13,12 @@ int main() {
   write(y);
   write(f());
   write(g());
+  write(3*8);
+  write(output(y));
 
   x = read();
   write(x);
   y = read();
   write(y);
-  write(1);
   write(h(read(), read()));
 }

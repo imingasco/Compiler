@@ -27,7 +27,6 @@ void yy(int a, float b, int c[][10], float d[][2][5]){
         for(i = 0; i < a; i = i + 1){
             while(j > 0){
                 j = j - 1;
-                return fuck;
             }
         }
     }
@@ -49,7 +48,7 @@ int main() {
   f5(d);
   f6(b);
   f();
-  yy(a, f, d, g);
+  yy(a, k, d[0][1][2], g[3][2][2]);
   y = g2(f1(f1(0)));
   y = f2(y, fib(y));
 }

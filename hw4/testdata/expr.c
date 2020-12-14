@@ -1,6 +1,7 @@
 int fn1() { return 1; }
 float fn3() { return 1.0; }
 int fn4(int a, int b) { return 1; }
+/*
 int expr(int a, int b, int c, int d, float fa, float fb, float fc) {
   int i, j, k, l;
   float fi = 1.0, fj = 2.0, fk = 3.0, fl = 4.0;
@@ -37,6 +38,7 @@ void f() {
   if (a + b > c && c > d) i = i;
   else i = 0;
 }
+*/
 int main() {
   int a = 0;
   int b, c, d;
@@ -44,17 +46,22 @@ int main() {
   a = 1 * 2;
   a = 1 / 2;
   a = 1 - 2;
-
-  a = a == 1;
-  a = a != 1;
-  a = a > 1;
-  a = a < 1;
-  a = a >= 1;
-  a = a <= 1;
-  a = 0 && 1;
+  a = 1 == 1;
+  a = 1 != 1;
+  a = 1 > 1;
+  a = 1 < 1;
+  a = 1 >= 1;
+  a = 1 <= 1;
+  a = 1 && 1;
   a = 1 || 0;
+  a = 0 || 0;
+  a = 1 && 0;
 
   a = !1;
+  a = -5;
+  a = +8;
+  a = -(3 - 2 * 5 + 11);
+  a = +(6 + 3 / 2 - 8);
 
   a = (1 + 2);
   a = 1 + !1;
