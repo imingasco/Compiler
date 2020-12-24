@@ -36,6 +36,7 @@ int main() {
   }
 
   for (B[3] = h(); 1; B[5]) {}
+  for (B; 0; B[2]) {}
 
   for (i = 0; f(i); i = g(i))
     i = !i;
