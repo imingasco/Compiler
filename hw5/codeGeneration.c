@@ -4,6 +4,8 @@
 #include "header.h"
 #include "symbolTable.h"
 int g_anyErrorOccur = 0;
+int ARoffset = 4;
+int reg_number = 5;
 
 DATA_TYPE getBiggerType(DATA_TYPE dataType1, DATA_TYPE dataType2);
 void processProgramNode(AST_NODE *programNode);
