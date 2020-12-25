@@ -798,10 +798,12 @@ void checkAssignmentStmt(AST_NODE* assignmentNode)
         // check dimension
         ArrayProperties property = leftNodeSymbol->attribute->attr.typeDescriptor->properties.arrayProperties;
         checkArrayReference(leftNode, property, 1);
+        leftNode->semantic_value.identifierSemanticValue.symbolTableEntry = leftNodeSymbol;
     }
     // available, name is a scalar
     else{
         leftNode->dataType = leftNodeSymbol->attribute->attr.typeDescriptor->properties.dataType;
+        leftNode->semantic_value.identifierSemanticValue.symbolTableEntry = leftNodeSymbol;
     }
 
     // check relop on RHS of assignment
@@ -890,6 +892,7 @@ void checkFunctionCall(AST_NODE* functionCallNode)
         return;
     }
     checkParameterPassing(idEntry->attribute->attr.functionSignature->parameterList, paramNode, idNode);
+    idNode->semantic_value.identifierSemanticValue.SymbolTableEntry = idEntry;
     functionCallNode->dataType = idEntry->attribute->attr.functionSignature->returnType;
 }
 
@@ -1310,11 +1313,13 @@ void checkExprNode(AST_NODE* exprNode)
             // printf("array name: %s\n", identifierName);
             ArrayProperties property = identifier->attribute->attr.typeDescriptor->properties.arrayProperties;
             checkArrayReference(exprNode, property, 0);
+            exprNode->semantic_value.identifierSemanticValue.symbolTableEntry = identifier;
         }
         // identifier is a scalar
         else{
             // printf("scalar name: %s\n", identifierName);
             exprNode->dataType = identifier->attribute->attr.typeDescriptor->properties.dataType;
+            exprNode->semantic_value.identifierSemanticValue.symbolTableEntry = identifier;
         }
         return;
     }

@@ -42,5 +42,7 @@ void initFunction();
 int isInvalidExpr(AST_NODE *exprNode, int invalidType);
 void getFormalParameterType(Parameter *formalParameter, char *formalParameterType);
 void getActualParameterType(AST_NODE *actualParameter, char *actualParameterType);
+int getArraySpace(SymbolTableEntry *idEntry);
+int isGlobal(SymbolTableEntry *entry);
 
 #endif
