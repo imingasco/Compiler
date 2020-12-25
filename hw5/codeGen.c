@@ -30,7 +30,50 @@ int get_t_reg(){
 }
 
 void free_t_reg(int t_reg_num){
+    t_reg_status[i] = UNUSED;
+}
 
+void prologue(char *functionName){
+    fprintf(fp, "_start_%s\n", functionName);
+    fprintf(fp, "\tsd ra, 0(sp)\n");
+    fprintf(fp, "\tsd fp, -8(sp)\n");
+    fprintf(fp, "\tadd fp, sp, -8\n");
+    fprintf(fp, "\tadd sp, sp, -16\n");
+    fprintf(fp, "\tla ra, _frameSize_%s\n", functionName);
+    fprintf(fp, "\tlw ra, 0(ra)\n");
+    fprintf(fp, "\tsub sp, sp, ra\n");
+    int offset = 8;
+    for(int i = 0; i < 7; i++, offset += 8)
+        fprintf(fp, "\tsd t%d, %d(sp)\n", i, offset);
+    for(int i = 2; i < 12; i++, offset += 8)
+        fprintf(fp, "\tsd s%d, %d(sp)\n", i, offset);
+    fprintf(fp, "\tsd fp, %d(sp)\n", offset);
+    offset += 8;
+    for(int i = 0; i < 8; i++, offset += 4)
+        fprintf(fp, "\tfsw ft%d, %d(sp)\n", i, offset);
+    return;
+}
+
+void epilogue(char *functionName){
+    fprintf(fp, "_end_%s\n", functionName);
+    int offset = 8;
+    for(int i = 0; i < 7; i++, offset += 8)
+        fprintf(fp, "\tld t%d, %d(sp)\n", i, offset);
+    for(int i = 2; i < 12; i++, offset += 8)
+        fprintf(fp, "\tld s%d, %d(sp)\n", i, offset);
+    fprintf(fp, "\tld fp, %d(sp)\n", offset);
+    offset += 8;
+    for(int i = 0; i < 8; i++, offset += 4)
+        fprintf(fp, "\tflw ft%d %d(sp)\n", i, offset);
+    fprintf(fp, "\tld ra, 8(fp)\n");
+    fprintf(fp, "\tmv sp, fp\n");
+    fprintf(fp, "\tadd sp, sp, 8\n");
+    fprintf(fp, "\tld fp, 0(fp)\n");
+    fprintf(fp, "\tjr ra\n");
+    fprintf(fp, ".data\n");
+    fprintf(fp, "\t_frameSize_%s: .word %d\n", functionName, ARoffset);
+    ARoffset = 4;
+    return;
 }
 
 void codeGen(AST_NODE *root)
@@ -52,6 +95,7 @@ void genProgramNode(AST_NODE *programNode)
     // globalDecl is a func_decl or a var_decl_list
     while(globalDecl != NULL){
         if(globalDecl->nodeType == VARIABLE_DECL_LIST_NODE){
+            fprintf(fp, ".data\n");
             AST_NODE *declList = globalDecl->child;
             while(declList != NULL){
                 genDeclarationNode(declList);
@@ -59,6 +103,14 @@ void genProgramNode(AST_NODE *programNode)
             }
         }
         else if(globalDecl->nodeType == DECLARATION_NODE){
+            switch(declarationNode->semantic_value.declSemanticValue.kind){
+                case VARIABLE_DECL:
+                    fprintf(fp, ".data\n");
+                    break;
+                case FUNCTION_DECL:
+                    fprintf(fp, ".text\n");
+                    break;
+            }
             genDeclarationNode(globalDecl);
         }
         else{
@@ -132,7 +184,7 @@ void genDeclareVariable(AST_NODE *declarationNode){
                                 fprintf(fp, "\tsw t%d, -%d(fp)\n", t_reg_num, ARoffset);
                             }
                             else{
-                                fprintf(fp, "\taddi t%d, x0, %d\n", t_reg_num, idNode->semantic_value.const1->const_u.intval);
+                                fprintf(fp, "\taddi t%d, x0, %d\n", t_reg_num, constVal);
                                 fprintf(fp, "\tsw t%d, -%d(fp)\n", t_reg_num, ARoffset);
                             }
                             free_t_reg(t_reg_num);
@@ -179,40 +231,14 @@ void genDeclareFunction(AST_NODE* declarationNode){
     AST_NODE *idNode = typeNode->rightSibling;
     AST_NODE *paramListNode = idNode->rightSibling;
     AST_NODE *blockNode = paramListNode->rightSibling;
-    DATA_TYPE dataType;
-    checkTypeNode(typeNode, &dataType);
-    char *typeName = typeNode->semantic_value.identifierSemanticValue.identifierName;
-    /*
-    SymbolTableEntry *typeEntry = retrieveSymbol(typeName);
-    */
-    SymbolTableEntry *typeEntry = typeNode->semantic_value.identifierSemanticValue.symbolTableEntry;
-    if(typeEntry != NULL && typeEntry->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR){
-        dataType = ERROR_TYPE;
-        printErrorMsgSpecial(declarationNode, typeName, RETURN_ARRAY);
-    }
     char *idName = idNode->semantic_value.identifierSemanticValue.identifierName;
-    if(isDeclaredLocally(idName)){
-        char errMsg[ERR_MSG_LEN];
-        sprintf(errMsg, "\'%s %s\'", typeNode->semantic_value.identifierSemanticValue.identifierName, idName);
-        printErrorMsgSpecial(idNode, errMsg, SYMBOL_REDECLARE);
-    }
-    else{
-        typeNode->dataType = dataType;
-        SymbolAttribute *symbolAttr = (SymbolAttribute *)malloc(sizeof(SymbolAttribute));
-        symbolAttr->attributeKind = FUNCTION_SIGNATURE;
-        symbolAttr->attr.functionSignature = (FunctionSignature *)malloc(sizeof(FunctionSignature));
-        symbolAttr->attr.functionSignature->returnType = dataType;
-        symbolAttr->attr.functionSignature->parametersCount = 0;
-        symbolAttr->attr.functionSignature->parameterList = NULL;
-        // enter function symbol first
-        // construct the paramList in funcSignature and declare param at the same time
-        idNode->semantic_value.identifierSemanticValue.symbolTableEntry = enterSymbol(idName, symbolAttr);
-        openScope();
-        declareFunctionParam(paramListNode, symbolAttr->attr.functionSignature);
-        // error : check if function is legal ( e.g. illegal paramList)
-        checkBlockNode(blockNode);
-        closeScope();
-    }
+    char *typeName = typeNode->semantic_value.identifierSemanticValue.identifierName;
+    SymbolTableEntry *typeEntry = typeNode->semantic_value.identifierSemanticValue.symbolTableEntry;
+    SymbolTableEntry *idEntry = idNode->semantic_value.identifierSemanticValue.symbolTableEntry;
+    prologue(idName);
+    // declareFunctionParam(paramListNode, symbolAttr->attr.functionSignature);
+    int ARsize = genBlockNode(blockNode);
+    epilogue(idName);
 }
 
 void declareFunctionParam(AST_NODE *paramListNode, FunctionSignature *functionSignature){
@@ -263,52 +289,17 @@ void declareFunctionParam(AST_NODE *paramListNode, FunctionSignature *functionSi
     }
 }
 
-
-void checkTypeNode(AST_NODE* typeNode, DATA_TYPE *dataType)
-{
-    SymbolTableEntry *typeEntry = retrieveSymbol(typeNode->semantic_value.identifierSemanticValue.identifierName);
-    if(typeEntry == NULL || typeEntry->attribute->attributeKind != TYPE_ATTRIBUTE){
-        // error : unknown type or not a type
-        char errMsg[ERR_MSG_LEN];
-        sprintf(errMsg, "\'%s\' is not a type", typeNode->semantic_value.identifierSemanticValue.identifierName);
-        printErrorMsgSpecial(typeNode, errMsg, SYMBOL_IS_NOT_TYPE);
-        *dataType = ERROR_TYPE;
-        typeNode->semantic_value.identifierSemanticValue.symbolTableEntry = typeEntry;
-    }
-    else if(typeEntry->attribute->attr.typeDescriptor->kind == SCALAR_TYPE_DESCRIPTOR){
-        // scalar type
-        *dataType = typeEntry->attribute->attr.typeDescriptor->properties.dataType;
-        typeNode->semantic_value.identifierSemanticValue.symbolTableEntry = typeEntry;
-    }
-    else{
-        // array type
-        *dataType = typeEntry->attribute->attr.typeDescriptor->properties.arrayProperties.elementType;
-        typeNode->semantic_value.identifierSemanticValue.symbolTableEntry = typeEntry;
-    }
-}
-
-/*
-void declareIdList(AST_NODE* declarationNode, SymbolAttributeKind isVariableOrTypeAttribute, int ignoreArrayFirstDimSize)
-{
-}
-
-
-void checkAssignOrExpr(AST_NODE* assignOrExprRelatedNode)
-{
-}
-*/
-
-void checkWhileStmt(AST_NODE* whileNode)
+void genWhileStmt(AST_NODE* whileNode)
 {
     AST_NODE *testExprRoot = whileNode->child;
     AST_NODE *stmtNode = testExprRoot->rightSibling;
-    checkExprNode(testExprRoot);
+    genExprNode(testExprRoot);
     isInvalidExpr(testExprRoot, INVALID_PTR_TYPE + INVALID_VOID_TYPE + INVALID_STRING_TYPE);
-    checkStmtNode(stmtNode);
+    genStmtNode(stmtNode);
 }
 
 
-void checkForStmt(AST_NODE* forNode)
+void genForStmt(AST_NODE* forNode)
 {
     AST_NODE *initAssignExprRoot = forNode->child;
     AST_NODE *initAssignExpr = initAssignExprRoot->child;
@@ -319,87 +310,32 @@ void checkForStmt(AST_NODE* forNode)
     AST_NODE *stmtNode = updateAssignExprRoot->rightSibling;
     while(initAssignExpr){
         if(initAssignExpr->nodeType == STMT_NODE && initAssignExpr->semantic_value.stmtSemanticValue.kind == ASSIGN_STMT)
-            checkAssignmentStmt(initAssignExpr);
+            genAssignmentStmt(initAssignExpr);
         else{
-            checkExprNode(initAssignExpr);
+            genExprNode(initAssignExpr);
             isInvalidExpr(initAssignExpr, INVALID_PTR_TYPE);
         }
         initAssignExpr = initAssignExpr->rightSibling;
     }
     while(relopExpr){
-        checkExprNode(relopExpr);
+        genExprNode(relopExpr);
         isInvalidExpr(relopExpr, INVALID_PTR_TYPE);
         relopExpr = relopExpr->rightSibling;
     }
     while(updateAssignExpr){
         if(updateAssignExpr->nodeType == STMT_NODE && updateAssignExpr->semantic_value.stmtSemanticValue.kind == ASSIGN_STMT)
-            checkAssignmentStmt(updateAssignExpr);
+            genAssignmentStmt(updateAssignExpr);
         else{
-            checkExprNode(updateAssignExpr);
+            genExprNode(updateAssignExpr);
             isInvalidExpr(updateAssignExpr, INVALID_PTR_TYPE);
         }
         updateAssignExpr = updateAssignExpr->rightSibling;
     }
-    checkStmtNode(stmtNode);
+    genStmtNode(stmtNode);
     return;
 }
 
-void checkArrayReference(AST_NODE *idNode, ArrayProperties property, int isLvalue)
-{
-    int nowDimension = 0;
-    AST_NODE *arrayDimension = idNode->child;
-    while(arrayDimension){
-        checkExprNode(arrayDimension);
-        if(arrayDimension->dataType == ERROR_TYPE)
-            idNode->dataType = ERROR_TYPE;
-        else if(arrayDimension->dataType != INT_TYPE){
-            printErrorMsg(arrayDimension, ARRAY_SUBSCRIPT_NOT_INT);
-            idNode->dataType = ERROR_TYPE;
-        }
-        /*
-        // constant index
-        if(arrayDimension->nodeType == CONST_VALUE_NODE && arrayDimension->semantic_value.const1->const_type != INTEGERC){
-            idNode->dataType = ERROR_TYPE;
-            printErrorMsg(arrayDimension, ARRAY_SUBSCRIPT_NOT_INT);
-        }
-        // expression index
-        else if(arrayDimension->nodeType == EXPR_NODE){
-            checkExprNode(arrayDimension);
-            if(arrayDimension->dataType == FLOAT_TYPE){
-                // index not an integer error
-                idNode->dataType = ERROR_TYPE;
-                printErrorMsg(arrayDimension, ARRAY_SUBSCRIPT_NOT_INT);
-            }
-            else if(arrayDimension->dataType == ERROR_TYPE)
-                idNode->dataType = ERROR_TYPE;
-        }
-        */
-        arrayDimension = arrayDimension->rightSibling;
-        nowDimension++;
-    }
-    if(idNode->dataType == ERROR_TYPE) return;
-    if(nowDimension < property.dimension){
-        // assign to an array address error
-        // idNode->dataType = ERROR_TYPE;
-        if(isLvalue){
-            idNode->dataType = ERROR_TYPE;
-            printErrorMsg(idNode, NOT_ASSIGNABLE);
-        }
-        else {
-            idNode->dataType = property.elementType == INT_TYPE ? INT_PTR_TYPE : FLOAT_PTR_TYPE;
-        }
-    }
-    else if(nowDimension > property.dimension){
-        // dimension error
-        idNode->dataType = ERROR_TYPE;
-        printErrorMsg(idNode, INCOMPATIBLE_ARRAY_DIMENSION);
-    }
-    else
-        idNode->dataType = property.elementType;
-    return;
-}
-
-void checkAssignmentStmt(AST_NODE* assignmentNode)
+void genAssignmentStmt(AST_NODE* assignmentNode)
 {
     AST_NODE *leftNode = assignmentNode->child;
     AST_NODE *rightNode = leftNode->rightSibling;
@@ -427,7 +363,7 @@ void checkAssignmentStmt(AST_NODE* assignmentNode)
     else if(leftNodeSymbol->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR){
         // check dimension
         ArrayProperties property = leftNodeSymbol->attribute->attr.typeDescriptor->properties.arrayProperties;
-        checkArrayReference(leftNode, property, 1);
+        genArrayReference(leftNode, property, 1);
     }
     // available, name is a scalar
     else{
@@ -435,7 +371,7 @@ void checkAssignmentStmt(AST_NODE* assignmentNode)
     }
 
     // check relop on RHS of assignment
-    checkExprNode(rightNode);
+    genExprNode(rightNode);
     if(isInvalidExpr(rightNode, INVALID_STRING_TYPE + INVALID_VOID_TYPE + INVALID_PTR_TYPE))
         rightNode->dataType = ERROR_TYPE;
     /*
@@ -460,17 +396,17 @@ void checkAssignmentStmt(AST_NODE* assignmentNode)
 }
 
 
-void checkIfStmt(AST_NODE* ifNode)
+void genIfStmt(AST_NODE* ifNode)
 {
     AST_NODE *ifTest = ifNode->child;
     AST_NODE *stmtNode = ifTest->rightSibling;
-    checkExprNode(ifTest);
+    genExprNode(ifTest);
     isInvalidExpr(ifTest, INVALID_PTR_TYPE + INVALID_VOID_TYPE);
-    checkStmtNode(stmtNode);
-    checkStmtNode(stmtNode->rightSibling);
+    genStmtNode(stmtNode);
+    genStmtNode(stmtNode->rightSibling);
 }
 
-void checkWriteFunction(AST_NODE* functionCallNode)
+void genWriteFunction(AST_NODE* functionCallNode)
 {
     // check if there is one argument
     AST_NODE *toWrite = functionCallNode->child->rightSibling->child;
@@ -483,7 +419,7 @@ void checkWriteFunction(AST_NODE* functionCallNode)
     if(shouldNull != NULL)
         printErrorMsgSpecial(functionCallNode, "write", TOO_MANY_ARGUMENTS);
 
-    checkExprNode(toWrite);
+    genExprNode(toWrite);
     isInvalidExpr(toWrite, INVALID_VOID_TYPE + INVALID_PTR_TYPE);
     // write a constant, should be string
     if(toWrite->nodeType == CONST_VALUE_NODE && toWrite->dataType != CONST_STRING_TYPE)
@@ -495,32 +431,20 @@ void checkWriteFunction(AST_NODE* functionCallNode)
     return;
 }
 
-void checkFunctionCall(AST_NODE* functionCallNode)
+void genFunctionCall(AST_NODE* functionCallNode)
 {
     AST_NODE *idNode = functionCallNode->child;
     AST_NODE *paramNode = idNode->rightSibling->child;
     char *idName = idNode->semantic_value.identifierSemanticValue.identifierName;
     // special case: write function
     if(strcmp(idName, "write") == 0){
-        checkWriteFunction(functionCallNode);
+        genWriteFunction(functionCallNode);
         return;
     }
 
-    SymbolTableEntry *idEntry = retrieveSymbol(idName);
-    if(idEntry == NULL){
-        // warning : implicit declaration
-        functionCallNode->dataType = ERROR_TYPE;
-        printErrorMsgSpecial(functionCallNode, idName, SYMBOL_UNDECLARED);
-        return;
-    }
-    else if(idEntry->attribute->attributeKind != FUNCTION_SIGNATURE){
-        // error : not callable
-        functionCallNode->dataType = ERROR_TYPE;
-        printErrorMsgSpecial(functionCallNode, idName, NOT_FUNCTION_NAME);
-        return;
-    }
-    checkParameterPassing(idEntry->attribute->attr.functionSignature->parameterList, paramNode, idNode);
-    functionCallNode->dataType = idEntry->attribute->attr.functionSignature->returnType;
+    SymbolTableEntry *idEntry = idNode->semantic_value.identifierSemanticValue.symbolTableEntry;
+    // genParameterPassing(idEntry->attribute->attr.functionSignature->parameterList, paramNode, idNode);
+    fprintf(fp, "\tjal _start_%s\n", idName);
 }
 
 void getFormalParameterType(Parameter *formalParameter, char *formalParameterType){
@@ -584,7 +508,7 @@ void checkParameterPassing(Parameter* formalParameter, AST_NODE* actualParameter
 {
     while(formalParameter != NULL && actualParameter != NULL){
         char formalParameterType[MSG_LEN], actualParameterType[MSG_LEN];
-        checkExprNode(actualParameter);
+        genExprNode(actualParameter);
         getFormalParameterType(formalParameter, formalParameterType);
         getActualParameterType(actualParameter, actualParameterType);
         if((strcmp(formalParameterType, "int") != 0 && strcmp(formalParameterType, "float") != 0) || \
@@ -885,66 +809,52 @@ int isInvalidExpr(AST_NODE *exprNode, int invalidType){
     return 0;
 }
 
-void checkExprNode(AST_NODE* exprNode)
+void genExprNode(AST_NODE* exprNode)
 {
-    /* this function should put dataType in AST_NODE */
-    // constant node
     if(exprNode->nodeType == NUL_NODE) return;
+    // constant node
     if(exprNode->nodeType == CONST_VALUE_NODE){
-        if(exprNode->semantic_value.const1->const_type == INTEGERC){
-            exprNode->dataType = INT_TYPE;
+        if(exprNode->dataType == INT_TYPE){
+            int t_reg_num = get_t_reg();
+            int constVal = exprNode->semantic_value.const1->const_u.intval;
+            int upper = constVal >> 12;
+            int lower = constVal & 0x00000FFF;
+            if(upper){
+                fprintf(fp, "\tlui t%d, %d\n", t_reg_num, upper);
+                fprintf(fp, "\tori t%d, t%d, %d\n", t_reg_num, t_reg_num, lower);
+            }
+            else
+                fprintf(fp, "\taddi t%d, x0, %d\n", t_reg_num, constVal);
+            exprNode->place = t_reg_num;
         }
-        else if(exprNode->semantic_value.const1->const_type == FLOATC){
-            exprNode->dataType = FLOAT_TYPE;
+        else if(exprNode->dataType == FLOAT_TYPE){
+            // TODO: float const
         }
-        else
-            exprNode->dataType = CONST_STRING_TYPE;
+        else{
+            fprintf(fp, ".data\n");
+            fprintf(fp, "");
+        }
         return;
     }
     // function call node
     else if(exprNode->nodeType == STMT_NODE && \
             exprNode->semantic_value.stmtSemanticValue.kind == FUNCTION_CALL_STMT){
-        checkFunctionCall(exprNode);
-        // if(exprNode->dataType == VOID_TYPE){
-        //     printErrorMsgSpecial(exprNode, exprNode->child->semantic_value.identifierSemanticValue.identifierName, INVALID_OPERAND);
-        //     exprNode->dataType = ERROR_TYPE;
-        // }
+        genFunctionCall(exprNode);
         return;
     }
     // identifier node
     else if(exprNode->nodeType == IDENTIFIER_NODE){
         char *identifierName = exprNode->semantic_value.identifierSemanticValue.identifierName;
-        SymbolTableEntry *identifier = retrieveSymbol(identifierName);
-        // identifier not available
-        if(identifier == NULL){
-            // error
-            exprNode->dataType = ERROR_TYPE;
-            printErrorMsgSpecial(exprNode, identifierName, SYMBOL_UNDECLARED);
-        }
-        // identifier is a function
-        else if(identifier->attribute->attributeKind == FUNCTION_SIGNATURE){
-            // error
-            // printf("func name: %s\n", identifierName);
-            exprNode->dataType = ERROR_TYPE;
-            printErrorMsgSpecial(exprNode, identifierName, IS_FUNCTION_NOT_VARIABLE);
-        }
-        // identifier is a typedef
-        else if(identifier->attribute->attributeKind == TYPE_ATTRIBUTE){
-            // error
-            // printf("type name: %s\n", identifierName);
-            exprNode->dataType = ERROR_TYPE;
-            printErrorMsgSpecial(exprNode, identifierName, IS_TYPE_NOT_VARIABLE);
-        }
-        // identifier is an array
-        else if(identifier->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR){
-            // printf("array name: %s\n", identifierName);
-            ArrayProperties property = identifier->attribute->attr.typeDescriptor->properties.arrayProperties;
-            checkArrayReference(exprNode, property, 0);
+        SymbolTableEntry *identifier = exprNode->semantic_value.identifierSemanticValue.symbolTableEntry;
+        if(identifier->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR){
+            int t_reg_num = get_t_reg();
+            exprNode->place = t_reg_num;
         }
         // identifier is a scalar
         else{
-            // printf("scalar name: %s\n", identifierName);
             exprNode->dataType = identifier->attribute->attr.typeDescriptor->properties.dataType;
+            int t_reg_num = get_t_reg();
+            exprNode->place = t_reg_num;
         }
         return;
     }
@@ -954,44 +864,26 @@ void checkExprNode(AST_NODE* exprNode)
     int invalidType = INVALID_VOID_TYPE + INVALID_STRING_TYPE + INVALID_PTR_TYPE;
     // relative operation, binary, e.g, a > 0, (a > 0 || b < 0)
     if(isRelativeOperation(exprNode)){
-        checkExprNode(leftNode);
-        checkExprNode(rightNode);
+        genExprNode(leftNode);
+        genExprNode(rightNode);
         // value of relative expression: 0 or 1(integer)
         if(isInvalidExpr(leftNode, invalidType) || isInvalidExpr(rightNode, invalidType))
             exprNode->dataType = ERROR_TYPE;
         else
             evaluateExprValue(exprNode);
-        // if(leftNode->dataType == CONST_STRING_TYPE || rightNode->dataType == CONST_STRING_TYPE){
-        //     exprNode->dataType = ERROR_TYPE;
-        //     printErrorMsg(exprNode, STRING_OPERATION);
-        // }
-        // else if(leftNode->dataType == ERROR_TYPE || rightNode->dataType == ERROR_TYPE)
-        //     exprNode->dataType = ERROR_TYPE;
-        // else
-        //     exprNode->dataType = INT_TYPE;
     }
     // unary operation
     else if(exprNode->semantic_value.exprSemanticValue.kind == UNARY_OPERATION){
-        checkExprNode(leftNode);
+        genExprNode(leftNode);
         if(isInvalidExpr(leftNode, invalidType))
             exprNode->dataType = ERROR_TYPE;
         else
             evaluateExprValue(exprNode);
-        // if(leftNode->dataType == CONST_STRING_TYPE){
-        //     exprNode->dataType = ERROR_TYPE;
-        //     printErrorMsg(exprNode, STRING_OPERATION);
-        // }
-        // else if(leftNode->dataType != ERROR_TYPE){
-        //     evaluateExprValue(exprNode);
-        //     //printf("checkExpr: %d\n", exprNode->semantic_value.exprSemanticValue.constEvalValue.iValue);
-        // }
-        // else
-        //     exprNode->dataType = ERROR_TYPE;
     }
     // binary arithmetic operation, e.g, +, -, *, /
     else{
-        checkExprNode(leftNode);
-        checkExprNode(rightNode);
+        genExprNode(leftNode);
+        genExprNode(rightNode);
         if(isInvalidExpr(leftNode, invalidType) || isInvalidExpr(rightNode, invalidType))
             exprNode->dataType = ERROR_TYPE;
         else
@@ -1023,7 +915,7 @@ void checkConstValueNode(AST_NODE* constValueNode)
 }
 */
 
-void checkReturnStmt(AST_NODE* returnNode)
+void genReturnStmt(AST_NODE* returnNode)
 {
     AST_NODE *returnItem = returnNode->child;
     AST_NODE *parentNode = returnNode->parent;
@@ -1033,7 +925,7 @@ void checkReturnStmt(AST_NODE* returnNode)
     AST_NODE *typeNode = parentNode->child;
     AST_NODE *idNode = typeNode->rightSibling;
     char *functionName = idNode->semantic_value.identifierSemanticValue.identifierName;
-    checkExprNode(returnItem);
+    genExprNode(returnItem);
     isInvalidExpr(returnItem, INVALID_PTR_TYPE + INVALID_STRING_TYPE);
     if(typeNode->dataType != ERROR_TYPE){
         if(typeNode->dataType == VOID_TYPE && returnItem->nodeType != NUL_NODE){
@@ -1046,9 +938,8 @@ void checkReturnStmt(AST_NODE* returnNode)
 }
 
 
-void checkBlockNode(AST_NODE* blockNode)
+void genBlockNode(AST_NODE* blockNode)
 {
-    // Open a scope in the previous node, since not every block opens a new scope. e.g. funcID--paramList--Block
     if(blockNode->child == NULL) return;
     AST_NODE *declList, *stmtList;
     if(blockNode->child->nodeType == VARIABLE_DECL_LIST_NODE){
@@ -1060,58 +951,52 @@ void checkBlockNode(AST_NODE* blockNode)
         stmtList = blockNode->child;
     }
     if(declList != NULL){
+        fprintf(fp, ".data\n");
         AST_NODE *decl = declList->child;
         while(decl != NULL){
-            checkDeclarationNode(decl);
+            genDeclarationNode(decl);
             decl = decl->rightSibling;
         }
     }
     if(stmtList != NULL){
+        fprintf(fp, ".text\n");
         AST_NODE *stmt = stmtList->child;
         while(stmt != NULL){
-            checkStmtNode(stmt);
+            genStmtNode(stmt);
             stmt = stmt->rightSibling;
         }
     }
 }
 
 
-void checkStmtNode(AST_NODE* stmtNode)
+void genStmtNode(AST_NODE* stmtNode)
 {
     if(stmtNode == NULL) return;
     switch(stmtNode->nodeType){
         case BLOCK_NODE:
-            openScope();
-            checkBlockNode(stmtNode);
-            closeScope();
+            genBlockNode(stmtNode);
             break;
         case NUL_NODE:
             break;
         default:
             switch(stmtNode->semantic_value.stmtSemanticValue.kind){
                 case IF_STMT:
-                    openScope();
-                    checkIfStmt(stmtNode);
-                    closeScope();
+                    genIfStmt(stmtNode);
                     break;
                 case WHILE_STMT:
-                    openScope();
-                    checkWhileStmt(stmtNode);
-                    closeScope();
+                    genWhileStmt(stmtNode);
                     break;
                 case FOR_STMT:
-                    openScope();
-                    checkForStmt(stmtNode);
-                    closeScope();
+                    //genForStmt(stmtNode);
                     break;
                 case RETURN_STMT:
-                    checkReturnStmt(stmtNode);
+                    genReturnStmt(stmtNode);
                     break;
                 case FUNCTION_CALL_STMT:
-                    checkFunctionCall(stmtNode);
+                    genFunctionCall(stmtNode);
                     break;
                 case ASSIGN_STMT:
-                    checkAssignmentStmt(stmtNode);
+                    genAssignmentStmt(stmtNode);
                     break;
             }
             break;
@@ -1119,12 +1004,3 @@ void checkStmtNode(AST_NODE* stmtNode)
 
 }
 
-/*
-void checkGeneralNode(AST_NODE *node)
-{
-}
-
-void checkDeclDimList(AST_NODE* idNode, TypeDescriptor* typeDescriptor, int ignoreFirstDimSize)
-{
-}
-*/

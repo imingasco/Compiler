@@ -44,5 +44,8 @@ void getFormalParameterType(Parameter *formalParameter, char *formalParameterTyp
 void getActualParameterType(AST_NODE *actualParameter, char *actualParameterType);
 int getArraySpace(SymbolTableEntry *idEntry);
 int isGlobal(SymbolTableEntry *entry);
+void genLoadConst(SymbolTableEntry *entry);
+void prologue(char *functionName);
+void epilogue(char *functionName);
 
 #endif

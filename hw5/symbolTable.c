@@ -134,7 +134,7 @@ void closeScope()
         removeFromHashChain(HASH(entry->name), entry);
         enterIntoHashChain(HASH(entry->name), entry->sameNameInOuterLevel);
         entry = entry->nextInSameLevel;
-        free(tmpEntry);
+        // free(tmpEntry);
     }
     symbolTable.scopeDisplay[symbolTable.currentLevel] = NULL;
     symbolTable.currentLevel--;
