@@ -6,6 +6,8 @@
 // You only need to check for errors stated in the hw4 document. //
 int g_anyErrorOccur = 0;
 int ARoffset = 4;
+int constLabelIndex = 1;
+int labelIndex = 1;
 short t_reg_status[7];
 
 #define UNUSED 0
@@ -17,6 +19,7 @@ short t_reg_status[7];
 #define INVALID_STRING_TYPE 1
 #define INVALID_VOID_TYPE 2
 #define INVALID_PTR_TYPE 4
+#define RETURN_REG 64
 
 FILE *fp;
 
@@ -27,6 +30,8 @@ int get_t_reg(){
             return i;
         }
     }
+    fprintf(stderr, "free your register!\n");
+    exit(1);
 }
 
 void free_t_reg(int t_reg_num){
@@ -74,6 +79,17 @@ void epilogue(char *functionName){
     fprintf(fp, "\t_frameSize_%s: .word %d\n", functionName, ARoffset);
     ARoffset = 4;
     return;
+}
+
+void loadConst(int constVal, int reg_num){
+    if(constVal < 2048 && constVal >= -2048){
+        int upper = constVal >> 12;
+        int lower = constVal & 0x00000FFF;
+        fprintf(fp, "\tlui t%d, %d\n", reg_num, upper);
+        fprintf(fp, "\tori t%d, t%d, %d\n", reg_num, reg_num, lower);
+    }
+    else
+        fprintf(fp, "\taddi t%d, x0, %d\n", reg_num, constVal);
 }
 
 void codeGen(AST_NODE *root)
@@ -176,17 +192,8 @@ void genDeclareVariable(AST_NODE *declarationNode){
                             idEntry->offset = ARoffset;
                             int t_reg_num = get_t_reg();
                             int constVal = idNode->semantic_value.const1->const_u.intval;
-                            int upper = constVal >> 12;
-                            int lower = constVal & 0x00000FFF;
-                            if(upper){
-                                fprintf(fp, "\tlui t%d, %d\n", t_reg_num, upper);
-                                fprintf(fp, "\tori t%d, t%d, %d\n", t_reg_num, t_reg_num, lower);
-                                fprintf(fp, "\tsw t%d, -%d(fp)\n", t_reg_num, ARoffset);
-                            }
-                            else{
-                                fprintf(fp, "\taddi t%d, x0, %d\n", t_reg_num, constVal);
-                                fprintf(fp, "\tsw t%d, -%d(fp)\n", t_reg_num, ARoffset);
-                            }
+                            loadConst(constVal, t_reg_num);
+                            fprintf(fp, "\tsw t%d, -%d(fp)\n", t_reg_num, ARoffset);
                             free_t_reg(t_reg_num);
                             ARoffset += 4;
                         }
@@ -241,6 +248,7 @@ void genDeclareFunction(AST_NODE* declarationNode){
     epilogue(idName);
 }
 
+/*
 void declareFunctionParam(AST_NODE *paramListNode, FunctionSignature *functionSignature){
     Parameter **paramListTail = &(functionSignature->parameterList);
     AST_NODE *paramNode = paramListNode->child;
@@ -288,17 +296,28 @@ void declareFunctionParam(AST_NODE *paramListNode, FunctionSignature *functionSi
         paramNode = paramNode->rightSibling;
     }
 }
+*/
 
 void genWhileStmt(AST_NODE* whileNode)
 {
     AST_NODE *testExprRoot = whileNode->child;
     AST_NODE *stmtNode = testExprRoot->rightSibling;
-    genExprNode(testExprRoot);
-    isInvalidExpr(testExprRoot, INVALID_PTR_TYPE + INVALID_VOID_TYPE + INVALID_STRING_TYPE);
+    
+    int successLabelIndex = labelIndex++;
+    int failLabelIndex = labelIndex++;
+    // unconditional jump to check
+    fprintf(fp, "\tj L%d\n", failLabelIndex);
+    fprintf(fp, "L%d:\n", successLabelIndex);
+    // gen block if test succeed
     genStmtNode(stmtNode);
+    // check test
+    fprintf(fp, "L%d:\n", failLabelIndex);
+    genExprNode(testExprRoot);
+    fprintf(fp, "\tbgtz t%d, L%d\n", testExprRoot->place, successLabelIndex);
+    free_t_reg(testExprRoot->place);
 }
 
-
+/*
 void genForStmt(AST_NODE* forNode)
 {
     AST_NODE *initAssignExprRoot = forNode->child;
@@ -313,13 +332,11 @@ void genForStmt(AST_NODE* forNode)
             genAssignmentStmt(initAssignExpr);
         else{
             genExprNode(initAssignExpr);
-            isInvalidExpr(initAssignExpr, INVALID_PTR_TYPE);
         }
         initAssignExpr = initAssignExpr->rightSibling;
     }
     while(relopExpr){
         genExprNode(relopExpr);
-        isInvalidExpr(relopExpr, INVALID_PTR_TYPE);
         relopExpr = relopExpr->rightSibling;
     }
     while(updateAssignExpr){
@@ -327,71 +344,43 @@ void genForStmt(AST_NODE* forNode)
             genAssignmentStmt(updateAssignExpr);
         else{
             genExprNode(updateAssignExpr);
-            isInvalidExpr(updateAssignExpr, INVALID_PTR_TYPE);
         }
         updateAssignExpr = updateAssignExpr->rightSibling;
     }
     genStmtNode(stmtNode);
     return;
 }
+*/
 
 void genAssignmentStmt(AST_NODE* assignmentNode)
 {
     AST_NODE *leftNode = assignmentNode->child;
     AST_NODE *rightNode = leftNode->rightSibling;
+    SymbolTableEntry *leftEntry = leftNode->semantic_value.identifierSemanticValue.symbolTableEntry;
+    int offset = leftEntry->offset;
 
-    // check variable is available at this scope
-    char *variableName = leftNode->semantic_value.identifierSemanticValue.identifierName;
-    SymbolTableEntry *leftNodeSymbol = retrieveSymbol(variableName);
-
-    // unavailable, error
-    if(leftNodeSymbol == NULL){
-        printErrorMsgSpecial(leftNode, variableName, SYMBOL_UNDECLARED);
-        leftNode->dataType = ERROR_TYPE;
-    }
-    // available, name is function
-    else if(leftNodeSymbol->attribute->attributeKind == FUNCTION_SIGNATURE){
-        printErrorMsgSpecial(leftNode, variableName, IS_FUNCTION_NOT_VARIABLE);
-        leftNode->dataType = ERROR_TYPE;
-    }
-    // available, name is typedef
-    else if(leftNodeSymbol->attribute->attributeKind == TYPE_ATTRIBUTE){
-        printErrorMsgSpecial(leftNode, variableName, IS_TYPE_NOT_VARIABLE);
-        leftNode->dataType = ERROR_TYPE;
-    }
-    // available, name is an array name
-    else if(leftNodeSymbol->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR){
-        // check dimension
-        ArrayProperties property = leftNodeSymbol->attribute->attr.typeDescriptor->properties.arrayProperties;
-        genArrayReference(leftNode, property, 1);
-    }
-    // available, name is a scalar
-    else{
-        leftNode->dataType = leftNodeSymbol->attribute->attr.typeDescriptor->properties.dataType;
-    }
-
-    // check relop on RHS of assignment
     genExprNode(rightNode);
-    if(isInvalidExpr(rightNode, INVALID_STRING_TYPE + INVALID_VOID_TYPE + INVALID_PTR_TYPE))
-        rightNode->dataType = ERROR_TYPE;
-    /*
-    if(rightNode->nodeType == CONST_VALUE_NODE){
-        switch(rightNode->dataType){
-            case INT_TYPE:
-                printf("data: %d\n", rightNode->semantic_value.const1->const_u.intval);
-                break;
-            case FLOAT_TYPE:
-                printf("data: %f\n", rightNode->semantic_value.const1->const_u.fval);
-                break;
+    if(leftNode->dataType == INT_TYPE){
+        int t_reg_num = get_t_reg();
+        if(leftEntry->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR){
+            genArrayElement(leftNode, t_reg_num);
+            fprintf(fp, "\tsw t%d, 0(t%d)\n", rightNode->place, t_reg_num);
         }
+        else if(isGlobal(leftEntry)){
+            fprintf(fp, "\tla t%d, _%s\n", t_reg_num, leftNode->semantic_value.identifierSemanticValue.identifierName);
+            fprintf(fp, "\tsw t%d, 0(t%d)\n", rightNode->place, t_reg_num);
+        }
+        else{
+            loadConst(offset, t_reg_num);
+            fprintf(fp, "\tsub t%d, fp, t%d\n", t_reg_num, t_reg_num);
+            fprintf(fp, "\tsw t%d, 0(t%d)\n", rightNode->place, t_reg_num);
+        }
+        free_t_reg(t_reg_num);
     }
-    */
-
-    // type conversion
-    if(leftNode->dataType == ERROR_TYPE || rightNode->dataType == ERROR_TYPE)
-        assignmentNode->dataType = ERROR_TYPE;
-    else
-        assignmentNode->dataType = leftNode->dataType;
+    else{
+        // float assignment
+    }
+    free_t_reg(rightNode->place);
     return;
 }
 
@@ -401,8 +390,12 @@ void genIfStmt(AST_NODE* ifNode)
     AST_NODE *ifTest = ifNode->child;
     AST_NODE *stmtNode = ifTest->rightSibling;
     genExprNode(ifTest);
-    isInvalidExpr(ifTest, INVALID_PTR_TYPE + INVALID_VOID_TYPE);
+    fprintf(fp, "\tbnez t%d, L%d\n", ifTest->place, labelIndex);
+    labelIndex++;
+    free_t_reg(ifTest->place);
+    // gen stmt for successful ifTest
     genStmtNode(stmtNode);
+    // gen stmt for else
     genStmtNode(stmtNode->rightSibling);
 }
 
@@ -410,24 +403,32 @@ void genWriteFunction(AST_NODE* functionCallNode)
 {
     // check if there is one argument
     AST_NODE *toWrite = functionCallNode->child->rightSibling->child;
-    if(toWrite == NULL){
-        printErrorMsgSpecial(functionCallNode, "write", TOO_FEW_ARGUMENTS);
-        return;
-    }
-    // check if there are more arguments
-    AST_NODE *shouldNull = toWrite->rightSibling;
-    if(shouldNull != NULL)
-        printErrorMsgSpecial(functionCallNode, "write", TOO_MANY_ARGUMENTS);
-
     genExprNode(toWrite);
-    isInvalidExpr(toWrite, INVALID_VOID_TYPE + INVALID_PTR_TYPE);
-    // write a constant, should be string
-    if(toWrite->nodeType == CONST_VALUE_NODE && toWrite->dataType != CONST_STRING_TYPE)
-        printErrorMsg(functionCallNode, NOT_WRITABLE);
-    // write an constant expression, invalid
-    else if(toWrite->nodeType == EXPR_NODE && toWrite->semantic_value.exprSemanticValue.isConstEval == 1)
-        printErrorMsg(functionCallNode, NOT_WRITABLE);
-    // others: write identifier & write function call(handled in checkExprNode)
+    // write a constant string
+    if(toWrite->nodeType == CONST_VALUE_NODE){
+        fprintf(fp, ".text\n");
+        int t_reg_num = get_reg();
+        fprintf(fp, "la t%d, _CONSTANT_%d\n", t_reg_num, toWrite->place);
+        fprintf(fp, "mv a0, t%d\n", t_reg_num);
+        fprintf(fp, "jal _write_str\n");
+        free_t_reg(toWrite->place);
+        free_t_reg(t_reg_num);
+    }
+    else if(toWrite->dataType == INT_TYPE){
+        int t_reg_num = get_reg();
+        fprintf(fp, "mv a0, t%d\n", toWrite->place);
+        fprintf(fp, "jal _write_int\n");
+        free_t_reg(toWrite->place);
+        free_t_reg(t_reg_num);
+    }
+    else{
+        // write float
+    }
+    return;
+}
+
+void genFreadFunction(){
+    fprintf(fp, "\tjal _read_float\n");
     return;
 }
 
@@ -439,6 +440,14 @@ void genFunctionCall(AST_NODE* functionCallNode)
     // special case: write function
     if(strcmp(idName, "write") == 0){
         genWriteFunction(functionCallNode);
+        return;
+    }
+    else if(strcmp(idName, "read") == 0){
+        fprintf(fp, "\tjal _read_int\n");
+        return;
+    }
+    else if(strcmp(idName, "fread") == 0){
+        fprintf(fp, "\tjal _read_float\n");
         return;
     }
 
@@ -504,6 +513,7 @@ void getActualParameterType(AST_NODE *actualParameter, char *actualParameterType
     }
 }
 
+/*
 void checkParameterPassing(Parameter* formalParameter, AST_NODE* actualParameter, AST_NODE *idNode)
 {
     while(formalParameter != NULL && actualParameter != NULL){
@@ -535,279 +545,7 @@ void checkParameterPassing(Parameter* formalParameter, AST_NODE* actualParameter
         printErrorMsgSpecial(idNode, errMsg, TOO_MANY_ARGUMENTS);
     }
 }
-
-int isRelativeOperation(AST_NODE *exprRelatedNode){
-    EXPRSemanticValue val = exprRelatedNode->semantic_value.exprSemanticValue;
-    if(val.kind == BINARY_OPERATION && \
-      (val.op.binaryOp == BINARY_OP_EQ || val.op.binaryOp == BINARY_OP_GE || val.op.binaryOp == BINARY_OP_LE || \
-       val.op.binaryOp == BINARY_OP_NE || val.op.binaryOp == BINARY_OP_GT || val.op.binaryOp == BINARY_OP_LT || \
-       val.op.binaryOp == BINARY_OP_OR || val.op.binaryOp == BINARY_OP_AND))
-        return 1;
-    else 
-        return 0;
-}
-
-
-void getExprOrConstValue(AST_NODE* exprOrConstNode, int** iValue, double** fValue)
-{
-    if(exprOrConstNode->semantic_value.const1->const_type == INTEGERC){
-        *iValue = &exprOrConstNode->semantic_value.const1->const_u.intval;
-    }
-    else{
-        *fValue = &exprOrConstNode->semantic_value.const1->const_u.fval;
-    }
-    return;
-}
-
-
-
-void evaluateExprValue(AST_NODE* exprNode)
-{
-    AST_NODE *leftNode = exprNode->child;
-    AST_NODE *rightNode = leftNode->rightSibling;
-    // for unary operation
-    if(rightNode == NULL){
-       if(leftNode->nodeType == CONST_VALUE_NODE){
-            int *livalue = NULL;
-            double *lfvalue = NULL;
-            getExprOrConstValue(leftNode, &livalue, &lfvalue);
-            exprNode->nodeType = CONST_VALUE_NODE;
-            CON_Type *constInfo = (CON_Type *)malloc(sizeof(CON_Type));
-            //printf("before evaluateExprValue: %d\n", *livalue);
-            if(livalue){
-                if(exprNode->semantic_value.exprSemanticValue.op.unaryOp == UNARY_OP_LOGICAL_NEGATION)
-                    constInfo->const_u.intval = (*livalue == 0);
-                else if(exprNode->semantic_value.exprSemanticValue.op.unaryOp == UNARY_OP_NEGATIVE)
-                    constInfo->const_u.intval = -(*livalue);
-                else
-                    constInfo->const_u.intval = *livalue;
-                constInfo->const_type = INTEGERC;
-                exprNode->semantic_value.const1 = constInfo;
-                exprNode->dataType = INT_TYPE;
-            }
-            else if(lfvalue){
-                if(exprNode->semantic_value.exprSemanticValue.op.unaryOp == UNARY_OP_LOGICAL_NEGATION){
-                    constInfo->const_u.intval = (*lfvalue == 0);
-                    constInfo->const_type = INTEGERC;
-                    exprNode->semantic_value.const1 = constInfo;
-                    exprNode->dataType = INT_TYPE;
-                }
-                else if(exprNode->semantic_value.exprSemanticValue.op.unaryOp == UNARY_OP_NEGATIVE){
-                    constInfo->const_u.fval = -(*lfvalue);
-                    constInfo->const_type = FLOATC;
-                    exprNode->semantic_value.const1 = constInfo;
-                    exprNode->dataType = FLOAT_TYPE;
-                }
-                else{
-                    constInfo->const_u.fval = *lfvalue;
-                    constInfo->const_type = FLOATC;
-                    exprNode->semantic_value.const1 = constInfo;
-                    exprNode->dataType = FLOAT_TYPE;
-                }
-            }
-            //printf("after evaluateExprValue: %d\n", exprNode->semantic_value.exprSemanticValue.constEvalValue.iValue);
-        }
-        else{
-            exprNode->semantic_value.exprSemanticValue.isConstEval = 0;
-            if(leftNode->dataType == ERROR_TYPE)
-                exprNode->dataType = ERROR_TYPE;
-            else if(exprNode->semantic_value.exprSemanticValue.op.unaryOp == UNARY_OP_LOGICAL_NEGATION)
-                exprNode->dataType = INT_TYPE;
-            else
-                exprNode->dataType = leftNode->dataType;
-        }
-    }
-    // binary logical operation
-    else if(isRelativeOperation(exprNode) && leftNode->nodeType == CONST_VALUE_NODE && rightNode->nodeType == CONST_VALUE_NODE){
-        int *livalue = NULL;
-        int *rivalue = NULL;
-        double *lfvalue = NULL;
-        double *rfvalue = NULL;
-        getExprOrConstValue(leftNode, &livalue, &lfvalue);
-        getExprOrConstValue(rightNode, &rivalue, &rfvalue);
-        exprNode->nodeType = CONST_VALUE_NODE;
-        CON_Type *constInfo = (CON_Type *)malloc(sizeof(CON_Type));
-        // both integer
-        if(livalue && rivalue){
-            if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_EQ)
-                constInfo->const_u.intval = *livalue == *rivalue;
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_GE)
-                constInfo->const_u.intval = *livalue >= *rivalue;
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_LE)
-                constInfo->const_u.intval = *livalue <= *rivalue;
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_NE)
-                constInfo->const_u.intval = *livalue != *rivalue;
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_GT)
-                constInfo->const_u.intval = *livalue > *rivalue;
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_LT)
-                constInfo->const_u.intval = *livalue < *rivalue;
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_AND)
-                constInfo->const_u.intval = *livalue && *rivalue;
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_OR)
-                constInfo->const_u.intval = *livalue || *rivalue;
-        }
-        // left integer, right float
-        else if(livalue && rfvalue){
-            if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_EQ)
-                constInfo->const_u.intval = (double)(*livalue) == *rfvalue;
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_GE)
-                constInfo->const_u.intval = (double)(*livalue) >= *rfvalue;
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_LE)
-                constInfo->const_u.intval = (double)(*livalue) <= *rfvalue;
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_NE)
-                constInfo->const_u.intval = (double)(*livalue) != *rfvalue;
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_GT)
-                constInfo->const_u.intval = (double)(*livalue) > *rfvalue;
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_LT)
-                constInfo->const_u.intval = (double)(*livalue) < *rfvalue;
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_AND)
-                constInfo->const_u.intval = (double)(*livalue) && *rfvalue;
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_OR)
-                constInfo->const_u.intval = (double)(*livalue) || *rfvalue;
-        }
-        // left float, right integer
-        else if(lfvalue && rivalue){
-            if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_EQ)
-                constInfo->const_u.intval = *lfvalue == (double)(*rivalue);
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_GE)
-                constInfo->const_u.intval = *lfvalue >= (double)(*rivalue);
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_LE)
-                constInfo->const_u.intval = *lfvalue <= (double)(*rivalue);
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_NE)
-                constInfo->const_u.intval = *lfvalue != (double)(*rivalue);
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_GT)
-                constInfo->const_u.intval = *lfvalue > (double)(*rivalue);
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_LT)
-                constInfo->const_u.intval = *lfvalue < (double)(*rivalue);
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_AND)
-                constInfo->const_u.intval = *lfvalue && (double)(*rivalue);
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_OR)
-                constInfo->const_u.intval = *lfvalue || (double)(*rivalue);
-        }
-        // both float
-        else{
-            if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_EQ)
-                constInfo->const_u.intval = *lfvalue == *rfvalue;
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_GE)
-                constInfo->const_u.intval = *lfvalue >= *rfvalue;
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_LE)
-                constInfo->const_u.intval = *lfvalue <= *rfvalue;
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_NE)
-                constInfo->const_u.intval = *lfvalue != *rfvalue;
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_GT)
-                constInfo->const_u.intval = *lfvalue > *rfvalue;
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_LT)
-                constInfo->const_u.intval = *lfvalue < *rfvalue;
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_AND)
-                constInfo->const_u.intval = *lfvalue && *rfvalue;
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_OR)
-                constInfo->const_u.intval = *lfvalue || *rfvalue;
-        }
-        constInfo->const_type = INTEGERC;
-        exprNode->semantic_value.const1 = constInfo;
-        exprNode->dataType = INT_TYPE;
-    }
-    // binary arithmetic operation, both side are constant evaluations
-    else if(leftNode->nodeType == CONST_VALUE_NODE && rightNode->nodeType == CONST_VALUE_NODE){
-        int *livalue = NULL;
-        int *rivalue = NULL;
-        double *lfvalue = NULL;
-        double *rfvalue = NULL;
-        getExprOrConstValue(leftNode, &livalue, &lfvalue);
-        getExprOrConstValue(rightNode, &rivalue, &rfvalue);
-        exprNode->nodeType = CONST_VALUE_NODE;
-        CON_Type *constInfo = (CON_Type *)malloc(sizeof(CON_Type));
-        // both integer
-        if(livalue && rivalue){
-            if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_ADD)
-                constInfo->const_u.intval = *livalue + *rivalue;
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_SUB)
-                constInfo->const_u.intval = *livalue - *rivalue;
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_MUL)
-                constInfo->const_u.intval = *livalue * *rivalue;
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_DIV)
-                constInfo->const_u.intval = *livalue / *rivalue;
-            constInfo->const_type = INTEGERC;
-            exprNode->semantic_value.const1 = constInfo;
-            exprNode->dataType = INT_TYPE;
-        }
-        // left integer, right float
-        else if(livalue && rfvalue){
-            if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_ADD)
-                constInfo->const_u.fval = (double)*livalue + *rfvalue;
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_SUB)
-                constInfo->const_u.fval = (double)*livalue - *rfvalue;
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_MUL)
-                constInfo->const_u.fval = (double)*livalue * *rfvalue;
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_DIV)
-                constInfo->const_u.fval = (double)*livalue / *rfvalue;
-            constInfo->const_type = FLOATC;
-            exprNode->semantic_value.const1 = constInfo;
-            exprNode->dataType = FLOAT_TYPE;
-        }
-        // left float, right integer
-        else if(lfvalue && rivalue){
-            if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_ADD)
-                constInfo->const_u.fval = *lfvalue + (double)*rivalue;
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_SUB)
-                constInfo->const_u.fval = *lfvalue - (double)*rivalue;
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_MUL)
-                constInfo->const_u.fval = *lfvalue * (double)*rivalue;
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_DIV)
-                constInfo->const_u.fval = *lfvalue / (double)*rivalue;
-            constInfo->const_type = FLOATC;
-            exprNode->semantic_value.const1 = constInfo;
-            exprNode->dataType = FLOAT_TYPE;
-        }
-        // both float
-        else{
-            if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_ADD)
-                constInfo->const_u.fval = *lfvalue + *rfvalue;
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_SUB)
-                constInfo->const_u.fval = *lfvalue - *rfvalue;
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_MUL)
-                constInfo->const_u.fval = *lfvalue * *rfvalue;
-            else if(exprNode->semantic_value.exprSemanticValue.op.binaryOp == BINARY_OP_DIV)
-                constInfo->const_u.fval = *lfvalue / *rfvalue;
-            constInfo->const_type = FLOATC;
-            exprNode->semantic_value.const1 = constInfo;
-            exprNode->dataType = FLOAT_TYPE;
-        }
-    }
-    else{
-        exprNode->semantic_value.exprSemanticValue.isConstEval = 0;
-        exprNode->dataType = getBiggerType(leftNode->dataType, rightNode->dataType);
-    }
-    return;
-}
-
-int isInvalidExpr(AST_NODE *exprNode, int invalidType){
-    if(exprNode->dataType == INT_TYPE || exprNode->dataType == FLOAT_TYPE) return 0;
-    switch(exprNode->dataType){
-        case CONST_STRING_TYPE:
-            if(invalidType & INVALID_STRING_TYPE){
-                printErrorMsg(exprNode, STRING_OPERATION);
-                return 1;
-            }
-            break;
-        case VOID_TYPE:
-            if(invalidType & INVALID_VOID_TYPE){
-                printErrorMsgSpecial(exprNode, exprNode->child->semantic_value.identifierSemanticValue.identifierName, INVALID_OPERAND);
-                return 1;
-            }
-            break;
-        case INT_PTR_TYPE: case FLOAT_PTR_TYPE:
-            if(invalidType & INVALID_PTR_TYPE){
-                printErrorMsg(exprNode, INVALID_ARRAY_POINTER);
-                return 1;
-            }
-            break;
-        default: // ERROR_TYPE
-            return 1;
-            break;
-    }
-    return 0;
-}
+*/
 
 void genExprNode(AST_NODE* exprNode)
 {
@@ -817,22 +555,17 @@ void genExprNode(AST_NODE* exprNode)
         if(exprNode->dataType == INT_TYPE){
             int t_reg_num = get_t_reg();
             int constVal = exprNode->semantic_value.const1->const_u.intval;
-            int upper = constVal >> 12;
-            int lower = constVal & 0x00000FFF;
-            if(upper){
-                fprintf(fp, "\tlui t%d, %d\n", t_reg_num, upper);
-                fprintf(fp, "\tori t%d, t%d, %d\n", t_reg_num, t_reg_num, lower);
-            }
-            else
-                fprintf(fp, "\taddi t%d, x0, %d\n", t_reg_num, constVal);
+            loadConst(constVal, t_reg_num);
             exprNode->place = t_reg_num;
         }
         else if(exprNode->dataType == FLOAT_TYPE){
-            // TODO: float const
+            // float const
         }
         else{
             fprintf(fp, ".data\n");
-            fprintf(fp, "");
+            fprintf(fp, "\t_CONSTANT_%d: .ascii \"%s\\000\"", constLabelIndex, exprNode->semantic_value.const1->const_u.sc);
+            exprNode->place = constLabelIndex;
+            constLabelIndex++;
         }
         return;
     }
@@ -840,80 +573,289 @@ void genExprNode(AST_NODE* exprNode)
     else if(exprNode->nodeType == STMT_NODE && \
             exprNode->semantic_value.stmtSemanticValue.kind == FUNCTION_CALL_STMT){
         genFunctionCall(exprNode);
+        int t_reg_num = get_t_reg();
+        if(exprNode->dataType == INT_TYPE){
+            fprintf(fp, "\tmv t%d, a0\n", t_reg_num);
+            exprNode->place = t_reg_num;
+        }
+        else{
+            // float function
+        }
         return;
     }
     // identifier node
     else if(exprNode->nodeType == IDENTIFIER_NODE){
         char *identifierName = exprNode->semantic_value.identifierSemanticValue.identifierName;
         SymbolTableEntry *identifier = exprNode->semantic_value.identifierSemanticValue.symbolTableEntry;
+        // array element
         if(identifier->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR){
             int t_reg_num = get_t_reg();
-            exprNode->place = t_reg_num;
+            if(exprNode->dataType == INT_TYPE){
+                genArrayElement(exprNode, t_reg_num);
+                fprintf(fp, "\tlw t%d, 0(t%d)\n", t_reg_num, t_reg_num);
+                exprNode->place = t_reg_num;
+            }
+            else{
+                // float
+            }
         }
         // identifier is a scalar
         else{
             exprNode->dataType = identifier->attribute->attr.typeDescriptor->properties.dataType;
             int t_reg_num = get_t_reg();
-            exprNode->place = t_reg_num;
+            // global variable
+            if(isGlobal(identifier)){
+                if(exprNode->dataType == INT_TYPE){
+                    fprintf(fp, "\tla t%d, _%s\n", t_reg_num, identifierName);
+                    fprintf(fp, "\tlw t%d, 0(t%d)\n", t_reg_num, t_reg_num);
+                    exprNode->place = t_reg_num;
+                }
+                else{
+                    // global float
+                }
+            }
+            else if(exprNode->dataType == INT_TYPE){
+                fprintf(fp, "\tlw t%d, -%d(fp)\n", t_reg_num, identifier->offset);
+                exprNode->place = t_reg_num;
+            }
+            else{
+                // local float
+            }
         }
         return;
     }
     // nonterminal nodes
     AST_NODE *leftNode = exprNode->child;
     AST_NODE *rightNode = leftNode->rightSibling;
-    int invalidType = INVALID_VOID_TYPE + INVALID_STRING_TYPE + INVALID_PTR_TYPE;
-    // relative operation, binary, e.g, a > 0, (a > 0 || b < 0)
-    if(isRelativeOperation(exprNode)){
-        genExprNode(leftNode);
-        genExprNode(rightNode);
-        // value of relative expression: 0 or 1(integer)
-        if(isInvalidExpr(leftNode, invalidType) || isInvalidExpr(rightNode, invalidType))
-            exprNode->dataType = ERROR_TYPE;
-        else
-            evaluateExprValue(exprNode);
-    }
+
     // unary operation
-    else if(exprNode->semantic_value.exprSemanticValue.kind == UNARY_OPERATION){
+    if(exprNode->semantic_value.exprSemanticValue.kind == UNARY_OPERATION){
         genExprNode(leftNode);
-        if(isInvalidExpr(leftNode, invalidType))
-            exprNode->dataType = ERROR_TYPE;
-        else
-            evaluateExprValue(exprNode);
+        switch(exprNode->semantic_value.exprSemanticValue.op.unaryOp){
+            case UNARY_OP_POSITIVE:
+                exprNode->place = leftNode->place;
+                break;
+            case UNARY_OP_NEGATIVE:
+                if(exprNode->dataType == INT_TYPE){
+                    fprintf(fp, "\tsub t%d, x0, t%d\n", leftNode->place, leftNode->place);
+                    exprNode->place = leftNode->place;
+                }
+                else{
+                    // float
+                }
+                break;
+            case UNARY_OP_LOGICAL_NEGATION:
+                if(exprNode->dataType == INT_TYPE){
+                    fprintf(fp, "\tsltiu t%d, t%d, 1\n", leftNode->place, leftNode->place);
+                    exprNode->place = leftNode->place;
+                }
+                else{
+                    // float
+                }
+                break;
+        }
     }
-    // binary arithmetic operation, e.g, +, -, *, /
     else{
         genExprNode(leftNode);
         genExprNode(rightNode);
-        if(isInvalidExpr(leftNode, invalidType) || isInvalidExpr(rightNode, invalidType))
-            exprNode->dataType = ERROR_TYPE;
+        int t_reg_num;
+        DATA_TYPE dataType;
+        if(leftNode->dataType == INT_TYPE && rightNode->dataType == INT_TYPE)
+            dataType = INT_TYPE;
+        else if(leftNode->dataType == INT_TYPE){
+            // convert leftNode to float
+            dataType = FLOAT_TYPE;
+        }
+        else if(rightNode->dataType == INT_TYPE){
+            // convert rightNode to float
+            dataType = FLOAT_TYPE;
+        }
         else
-            evaluateExprValue(exprNode);
-        // if(leftNode->dataType == CONST_STRING_TYPE || rightNode->dataType == CONST_STRING_TYPE){
-        //     exprNode->dataType = ERROR_TYPE;
-        //     printErrorMsg(exprNode, STRING_OPERATION);
-        // }
-        // else if(leftNode->dataType != ERROR_TYPE && rightNode->dataType != ERROR_TYPE)
-        //     evaluateExprValue(exprNode);
-        // else
-        //     exprNode->dataType = ERROR_TYPE;
+            dataType = FLOAT_TYPE;
+        // put result in register of left operand
+        // free register of right operand
+        // set place of this node to register of left operand
+        switch(exprNode->exprSemanticValue.op.binaryOp){
+            case BINARY_OP_ADD:
+                if(dataType == INT_TYPE){
+                    fprintf(fp, "\tadd t%d, t%d, t%d\n", leftNode->place, leftNode->place, rightNode->place);
+                    free_t_reg(rightNode->place);
+                }
+                else{
+
+                }
+                break;
+            case BINARY_OP_SUB:
+                if(dataType == INT_TYPE){
+                    fprintf(fp, "\tsub t%d, t%d, t%d\n", leftNode->place, leftNode->place, rightNode->place);
+                    free_t_reg(rightNode->place);
+                }
+                else{
+
+                }
+                break;
+            case BINARY_OP_MUL:
+                if(dataType == INT_TYPE){
+                    fprintf(fp, "\tmul t%d, t%d, t%d\n", leftNode->place, leftNode->place, rightNode->place);
+                    free_t_reg(rightNode->place);
+                }
+                else{
+
+                }
+                break;
+            case BINARY_OP_DIV:
+                if(dataType == INT_TYPE){
+                    fprintf(fp, "\tdiv t%d, t%d, t%d\n", leftNode->place, leftNode->place, rightNode->place);
+                    free_t_reg(rightNode->place);
+                }
+                else{
+
+                }
+                break;
+            case BINARY_OP_EQ:
+                if(dataType == INT_TYPE){
+                    fprintf(fp, "\tsub t%d, t%d, t%d\n", leftNode->place, leftNode->place, rightNode->place);
+                    fprintf(fp, "\tsltiu t%d, t%d, 1\n", leftNode->place, leftNode->place);
+                    free_t_reg(rightNode->place);
+                }
+                else{
+
+                }
+                break;
+            case BINARY_OP_GE:
+                // a >= b -> a - b >= 0 -> -1 < a - b
+                if(dataType == INT_TYPE){
+                    t_reg_num = get_t_reg();
+                    fprintf(fp, "\tsub t%d, t%d, t%d\n", leftNode->place, leftNode->place, rightNode->place);
+                    loadConst(-1, t_reg_num);
+                    fprintf(fp, "\tslt t%d, t%d, t%d\n", leftNode->place, t_reg_num, leftNode->place);
+                    free_t_reg(t_reg_num);
+                    free_t_reg(rightNode->place);
+                }
+                else{
+
+                }
+                break;
+            case BINARY_OP_LE:
+                if(dataType == INT_TYPE){
+                    // a <= b -> a - b <= 0 -> a - b < 1
+                    fprintf(fp, "\tsub t%d, t%d, t%d\n", leftNode->place, leftNode->place, rightNode->place);
+                    fprintf(fp, "\tslti t%d, t%d, 1\n", leftNode->place, leftNode->place);
+                    free_t_reg(rightNode->place);
+                }
+                else{
+
+                }
+                break;
+            case BINARY_OP_NE:
+                if(dataType == INT_TYPE){
+                    // a != b -> a - b != 0
+                    fprintf(fp, "\tsub t%d, t%d, t%d\n", leftNode->place, leftNode->place, rightNode->place);
+                    fprintf(fp, "\tsltu t%d, x0, t%d\n", leftNode->place, leftNode->place);
+                    free_t_reg(rightNode->place);
+                }
+                else{
+
+                }
+                break;
+            case BINARY_OP_GT:
+                if(dataType == INT_TYPE){
+                    // a > b -> b < a
+                    fprintf(fp, "\tslt t%d, t%d, t%d\n", leftNode->place, rightNode->place, leftNode->place);
+                    free_t_reg(rightNode->place);
+                }
+                else{
+
+                }
+                break;
+            case BINARY_OP_LT:
+                if(dataType == INT_TYPE){
+                    // a < b
+                    fprintf(fp, "\tslt t%d, t%d, t%d\n", leftNode->place, leftNode->place, rightNode->place);
+                    free_t_reg(rightNode->place);
+                }
+                else{
+
+                }
+                break;
+            case BINARY_OP_AND:
+                if(dataType == INT_TYPE){
+                    // a && b
+                    int failLabelIndex = labelIndex++;
+                    int successLabelIndex = labelIndex++;
+                    fprintf(fp, "\tbeqz t%d, L%d\n", leftNode->place, failLabelIndex);
+                    fprintf(fp, "\tbeqz t%d, L%d\n", rightNode->place, failLabelIndex);
+                    loadConst(1, leftNode->place);
+                    fprintf(fp, "\tj L%d\n", successLabelIndex);
+                    fprintf(fp, "L%d:\n", failLabelIndex);
+                    loadConst(0, leftNode->place);
+                    fprintf(fp, "L%d:\n", successLabelIndex);
+                }
+                else{
+
+                }
+                break;
+            case BINARY_OP_OR:
+                if(dataType == INT_TYPE){
+                }
+                else{
+
+                }
+                break;
+        }
+        exprNode->place = leftNode->place;
     }
     return;
 }
 
-/*
-void checkVariableLValue(AST_NODE* idNode)
-{
+void genArrayElement(AST_NODE *idNode, int offset_reg){
+    AST_NODE *arrayDimension = idNode->child;
+    SymbolTable *idEntry = idNode->semantic_value.identifierSemanticValue.SymbolTableEntry;
+    ArrayProperties property = idEntry->attribute->attr.typeDescriptor->properties.arrayProperties;
+    int nowDimension = 0;
+    if(isGlobal(idEntry)){
+        fprintf(fp, "\tla t%d, _%s\n", offset_reg, idNode->semantic_value.identifierSemanticValue.identifierName);
+        while(arrayDimension){
+            int offsetPerShift = 1;
+            int t_reg_num = get_t_reg();
+            genExprNode(arrayDimension);
+            for(int i = nowDimension + 1; i < property.dimension; i++)
+                offsetPerShift *= property.sizeInEachDimension[i];
+            if(offsetPerShift > 1){
+                loadConst(offsetPerShift, t_reg_num);
+                fprintf(fp, "\tmul t%d, t%d, t%d\n", arrayDimension->place, arrayDimension->place, t_reg_num);
+            }
+            fprintf(fp, "\tslli, t%d, t%d, 2\n", arrayDimension->place, arrayDimension->place);
+            fprintf(fp, "\tadd t%d, t%d, t%d\n", offset_reg, offset_reg, arrayDimension->place);
+            free_t_reg(arrayDimension->place);
+            free_t_reg(t_reg_num);
+            nowDimension++; 
+            arrayDimension = arrayDimension->rightSibling;
+        }
+    }
+    else{
+        int arrayStartOffset = idEntry->offset;
+        loadConst(arrayStartOffset, offset_reg);
+        while(arrayDimension){
+            int offsetPerShift = 1;
+            int t_reg_num = get_t_reg();
+            genExprNode(arrayDimension);
+            for(int i = nowDimension + 1; i < property.dimension; i++)
+                offsetPerShift *= property.sizeInEachDimension[i];
+            if(offsetPerShift > 1){
+                loadConst(offsetPerShift, t_reg_num);
+                fprintf(fp, "\tmul t%d, t%d, t%d\n", arrayDimension->place, arrayDimension->place, t_reg_num);
+            }
+            fprintf(fp, "\tslli, t%d, t%d, 2\n", arrayDimension->place, arrayDimension->place);
+            fprintf(fp, "\tsub t%d, t%d, t%d\n", offset_reg, offset_reg, arrayDimension->place);
+            free_t_reg(arrayDimension->place);
+            free_t_reg(t_reg_num);
+            nowDimension++; 
+            arrayDimension = arrayDimension->rightSibling;
+        }
+        fprintf(fp, "\tsub t%d, fp, t%d\n", offset_reg, offset_reg);
+    }
 }
-
-void checkVariableRValue(AST_NODE* idNode)
-{
-}
-
-
-void checkConstValueNode(AST_NODE* constValueNode)
-{
-}
-*/
 
 void genReturnStmt(AST_NODE* returnNode)
 {
@@ -926,15 +868,9 @@ void genReturnStmt(AST_NODE* returnNode)
     AST_NODE *idNode = typeNode->rightSibling;
     char *functionName = idNode->semantic_value.identifierSemanticValue.identifierName;
     genExprNode(returnItem);
-    isInvalidExpr(returnItem, INVALID_PTR_TYPE + INVALID_STRING_TYPE);
-    if(typeNode->dataType != ERROR_TYPE){
-        if(typeNode->dataType == VOID_TYPE && returnItem->nodeType != NUL_NODE){
-            printErrorMsgSpecial(returnNode, functionName, RETURN_IN_VOID_FUNCTION);
-        }
-        else if(typeNode->dataType != VOID_TYPE && returnItem->nodeType == NUL_NODE){
-            // warning : return value in non-void function
-        }
-    }
+    fprintf(fp, "\tmv a0, t%d\n", returnItem->place);
+    fprintf(fp, "\tj, _end_%s\n", functionName);
+    free_t_reg(returnItem->place);
 }
 
 
@@ -951,7 +887,9 @@ void genBlockNode(AST_NODE* blockNode)
         stmtList = blockNode->child;
     }
     if(declList != NULL){
-        fprintf(fp, ".data\n");
+        if(blockNode->parent->nodeType == DECLARATION_NODE && \
+           blockNode->parent->semantic_value.declSemanticValue.kind == FUNCTION_DECL)
+            fprintf(fp, ".data\n");
         AST_NODE *decl = declList->child;
         while(decl != NULL){
             genDeclarationNode(decl);
@@ -959,7 +897,9 @@ void genBlockNode(AST_NODE* blockNode)
         }
     }
     if(stmtList != NULL){
-        fprintf(fp, ".text\n");
+        if(blockNode->parent->nodeType == DECLARATION_NODE && \
+           blockNode->parent->semantic_value.declSemanticValue.kind == FUNCTION_DECL)
+            fprintf(fp, ".text\n");
         AST_NODE *stmt = stmtList->child;
         while(stmt != NULL){
             genStmtNode(stmt);
@@ -967,7 +907,6 @@ void genBlockNode(AST_NODE* blockNode)
         }
     }
 }
-
 
 void genStmtNode(AST_NODE* stmtNode)
 {

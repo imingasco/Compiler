@@ -27,7 +27,6 @@ SymbolTableEntry* newSymbolTableEntry(int nestingLevel)
     symbolTableEntry->attribute = NULL;
     symbolTableEntry->name = NULL;
     symbolTableEntry->nestingLevel = nestingLevel;
-    symbolTableEntry->offset = ARoffset;
     return symbolTableEntry;
 }
 

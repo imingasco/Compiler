@@ -39,13 +39,16 @@ void evaluateExprValue(AST_NODE* exprNode);
 int  isRelativeOperation(AST_NODE* exprRelatedNode);
 void checkArrayReference(AST_NODE* arrayReference, ArrayProperties property, int isLvalue);
 void initFunction();
-int isInvalidExpr(AST_NODE *exprNode, int invalidType);
+int  isInvalidExpr(AST_NODE *exprNode, int invalidType);
 void getFormalParameterType(Parameter *formalParameter, char *formalParameterType);
 void getActualParameterType(AST_NODE *actualParameter, char *actualParameterType);
-int getArraySpace(SymbolTableEntry *idEntry);
-int isGlobal(SymbolTableEntry *entry);
+int  getArraySpace(SymbolTableEntry *idEntry);
+int  isGlobal(SymbolTableEntry *entry);
 void genLoadConst(SymbolTableEntry *entry);
 void prologue(char *functionName);
 void epilogue(char *functionName);
+void genArrayElement(AST_NODE *idNode, int offset_reg);
+void genReadFunction(AST_NODE *readNode);
+void genFreadFunction(AST_NODE *freadNode);
 
 #endif
