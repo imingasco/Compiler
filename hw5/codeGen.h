@@ -8,6 +8,8 @@
 
 int  get_t_reg();
 void free_t_reg(int t_reg_num);
+int  get_ft_reg();
+void free_ft_reg(int ft_reg_num);
 void genProgramNode(AST_NODE *programNode);
 void genDeclarationNode(AST_NODE* declarationNode);
 void genDeclareVariable(AST_NODE *declaratioNode);
@@ -28,7 +30,8 @@ void getFormalParameterType(Parameter *formalParameter, char *formalParameterTyp
 void getActualParameterType(AST_NODE *actualParameter, char *actualParameterType);
 int  getArraySpace(SymbolTableEntry *idEntry);
 int  isGlobal(SymbolTableEntry *entry);
-void genLoadConst(SymbolTableEntry *entry);
+void loadConst(int constVal, int reg_num);
+void loadFloat(float constVal, int reg_num);
 void prologue(char *functionName);
 void epilogue(char *functionName);
 void genArrayElement(AST_NODE *idNode, int offset_reg);
