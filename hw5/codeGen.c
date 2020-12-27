@@ -863,7 +863,7 @@ void genExprNode(AST_NODE* exprNode)
                     t_reg_num = get_t_reg();
                     fprintf(fp, "\tfle.s t%d, ft%d, ft%d\n", t_reg_num, leftNode->place, rightNode->place);
                     free_ft_reg(leftNode->place);
-                    free_ft_reg(rightNode->plae);
+                    free_ft_reg(rightNode->place);
                     exprNode->place = t_reg_num;
                 }
                 break;
