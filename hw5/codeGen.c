@@ -7,6 +7,7 @@
 int ARoffset = 4;
 int constLabelIndex = 1;
 int labelIndex = 1;
+int ifExitLabelIndex = 1;
 short t_reg_status[7];
 
 #define UNUSED 0
@@ -75,7 +76,7 @@ void epilogue(char *functionName){
     fprintf(fp, "\tld fp, 0(fp)\n");
     fprintf(fp, "\tjr ra\n");
     fprintf(fp, ".data\n");
-    fprintf(fp, "\t_frameSize_%s: .word %d\n", functionName, 180 + ARoffset - 4);
+    fprintf(fp, "\t_frameSize_%s: .word %d\n", functionName, 180 + ARoffset);
     ARoffset = 4;
     return;
 }
@@ -162,7 +163,7 @@ void genDeclareVariable(AST_NODE *declarationNode){
             switch (idNode->semantic_value.identifierSemanticValue.kind){
                 case NORMAL_ID:
                     if(isGlobal(idEntry))
-                        fprintf(fp, "\t_%s: .word\n", idName);
+                        fprintf(fp, "\t_%s: .word 0\n", idName);
                     else{
                         idEntry->offset = ARoffset;
                         ARoffset += 4;
@@ -388,14 +389,17 @@ void genIfStmt(AST_NODE* ifNode)
     AST_NODE *ifTest = ifNode->child;
     AST_NODE *stmtNode = ifTest->rightSibling;
     int elseIndex = labelIndex++;
+    int exitIndex = ifExitLabelIndex++;
     genExprNode(ifTest);
-    fprintf(fp, "\tbnez t%d, L%d\n", ifTest->place, elseIndex);
+    fprintf(fp, "\tbeqz t%d, L%d\n", ifTest->place, elseIndex);
     free_t_reg(ifTest->place);
     // gen stmt for successful ifTest
     genStmtNode(stmtNode);
+    fprintf(fp, "\tj ifExit_%d\n", exitIndex);
     // gen stmt for else
     fprintf(fp, "L%d:\n", elseIndex);
     genStmtNode(stmtNode->rightSibling);
+    fprintf(fp, "ifExit_%d:\n", exitIndex);
 }
 
 void genWriteFunction(AST_NODE* functionCallNode)
@@ -558,12 +562,12 @@ void genExprNode(AST_NODE* exprNode)
         }
         else{
             char *string = exprNode->semantic_value.const1->const_u.sc;
-            char buf[1024];
+            char buf[1024] = "";
             int len = strlen(string);
             strncpy(buf, string, len - 1);
             fprintf(fp, ".data\n");
             fprintf(fp, "\t_CONSTANT_%d: .ascii \"%s\\000\"\n", constLabelIndex, &buf[1]);
-            fprintf(fp, "\t.align 3\n");
+            // fprintf(fp, "\t.align 3\n");
             exprNode->place = constLabelIndex;
             constLabelIndex++;
         }
