@@ -14,7 +14,6 @@ int HASH(char * str) {
 	return (idx & (HASH_TABLE_SIZE-1));
 }
 
-extern int ARoffset;
 SymbolTable symbolTable;
 
 SymbolTableEntry* newSymbolTableEntry(int nestingLevel)

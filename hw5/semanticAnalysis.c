@@ -892,7 +892,7 @@ void checkFunctionCall(AST_NODE* functionCallNode)
         return;
     }
     checkParameterPassing(idEntry->attribute->attr.functionSignature->parameterList, paramNode, idNode);
-    idNode->semantic_value.identifierSemanticValue.SymbolTableEntry = idEntry;
+    idNode->semantic_value.identifierSemanticValue.symbolTableEntry = idEntry;
     functionCallNode->dataType = idEntry->attribute->attr.functionSignature->returnType;
 }
 
