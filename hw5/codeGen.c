@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "semanticAnalysis.h"
+#include "codeGen.h"
 // This file is for reference only, you are not required to follow the implementation. //
 // You only need to check for errors stated in the hw4 document. //
 int g_anyErrorOccur = 0;
@@ -35,7 +35,7 @@ int get_t_reg(){
 }
 
 void free_t_reg(int t_reg_num){
-    t_reg_status[i] = UNUSED;
+    t_reg_status[t_reg_num] = UNUSED;
 }
 
 void prologue(char *functionName){
