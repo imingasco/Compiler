@@ -4,7 +4,6 @@
 #include "codeGen.h"
 // This file is for reference only, you are not required to follow the implementation. //
 // You only need to check for errors stated in the hw4 document. //
-int g_anyErrorOccur = 0;
 int ARoffset = 4;
 int constLabelIndex = 1;
 int labelIndex = 1;
@@ -39,7 +38,7 @@ void free_t_reg(int t_reg_num){
 }
 
 void prologue(char *functionName){
-    fprintf(fp, "_start_%s\n", functionName);
+    fprintf(fp, "_start_%s:\n", functionName);
     fprintf(fp, "\tsd ra, 0(sp)\n");
     fprintf(fp, "\tsd fp, -8(sp)\n");
     fprintf(fp, "\tadd fp, sp, -8\n");
@@ -60,7 +59,7 @@ void prologue(char *functionName){
 }
 
 void epilogue(char *functionName){
-    fprintf(fp, "_end_%s\n", functionName);
+    fprintf(fp, "_end_%s:\n", functionName);
     int offset = 8;
     for(int i = 0; i < 7; i++, offset += 8)
         fprintf(fp, "\tld t%d, %d(sp)\n", i, offset);
@@ -69,27 +68,27 @@ void epilogue(char *functionName){
     fprintf(fp, "\tld fp, %d(sp)\n", offset);
     offset += 8;
     for(int i = 0; i < 8; i++, offset += 4)
-        fprintf(fp, "\tflw ft%d %d(sp)\n", i, offset);
+        fprintf(fp, "\tflw ft%d, %d(sp)\n", i, offset);
     fprintf(fp, "\tld ra, 8(fp)\n");
     fprintf(fp, "\tmv sp, fp\n");
     fprintf(fp, "\tadd sp, sp, 8\n");
     fprintf(fp, "\tld fp, 0(fp)\n");
     fprintf(fp, "\tjr ra\n");
     fprintf(fp, ".data\n");
-    fprintf(fp, "\t_frameSize_%s: .word %d\n", functionName, ARoffset);
+    fprintf(fp, "\t_frameSize_%s: .word %d\n", functionName, 180 + ARoffset - 4);
     ARoffset = 4;
     return;
 }
 
 void loadConst(int constVal, int reg_num){
-    if(constVal < 2048 && constVal >= -2048){
+    if(constVal < 2048 && constVal >= -2048)
+        fprintf(fp, "\taddi t%d, x0, %d\n", reg_num, constVal);
+    else{
         int upper = constVal >> 12;
         int lower = constVal & 0x00000FFF;
         fprintf(fp, "\tlui t%d, %d\n", reg_num, upper);
         fprintf(fp, "\tori t%d, t%d, %d\n", reg_num, reg_num, lower);
     }
-    else
-        fprintf(fp, "\taddi t%d, x0, %d\n", reg_num, constVal);
 }
 
 void codeGen(AST_NODE *root)
@@ -119,7 +118,7 @@ void genProgramNode(AST_NODE *programNode)
             }
         }
         else if(globalDecl->nodeType == DECLARATION_NODE){
-            switch(declarationNode->semantic_value.declSemanticValue.kind){
+            switch(globalDecl->semantic_value.declSemanticValue.kind){
                 case VARIABLE_DECL:
                     fprintf(fp, ".data\n");
                     break;
@@ -163,17 +162,19 @@ void genDeclareVariable(AST_NODE *declarationNode){
             switch (idNode->semantic_value.identifierSemanticValue.kind){
                 case NORMAL_ID:
                     if(isGlobal(idEntry))
-                        fprintf(fp, "\t_%s .word\n", idName);
+                        fprintf(fp, "\t_%s: .word\n", idName);
                     else{
                         idEntry->offset = ARoffset;
                         ARoffset += 4;
                     }   
                     break;
                 case ARRAY_ID:
-                    int space = getArraySpace(idEntry);
-                    if(isGlobal(idEntry))
-                        fprintf(fp, "\t_%s .space %d\n", idName, space);
+                    if(isGlobal(idEntry)){
+                        int space = getArraySpace(idEntry);
+                        fprintf(fp, "\t_%s: .space %d\n", idName, space);
+                    }
                     else{
+                        int space = getArraySpace(idEntry);
                         idEntry->offset = ARoffset + space - 4;
                         ARoffset += space;
                     }
@@ -183,9 +184,9 @@ void genDeclareVariable(AST_NODE *declarationNode){
                     exprNode = idNode->child;
                     if(isGlobal(idEntry)){
                         if(idNode->dataType == INT_TYPE)
-                            fprintf(fp, "\t_%s .word %d\n", idName, idNode->semantic_value.const1->const_u.intval);
+                            fprintf(fp, "\t_%s: .word %d\n", idName, idNode->semantic_value.const1->const_u.intval);
                         else
-                            fprintf(fp, "\t_%s .word %d\n", idName, idNode->semantic_value.const1->const_u.fval);
+                            fprintf(fp, "\t_%s: .word %d\n", idName, idNode->semantic_value.const1->const_u.fval);
                     }
                     else{
                         if(idNode->dataType == INT_TYPE){
@@ -206,12 +207,10 @@ void genDeclareVariable(AST_NODE *declarationNode){
         } 
         // array type
         else{
-            ArrayProperties *symbolProperty = &(symbolAttr->attr.typeDescriptor->properties.arrayProperties);
-            ArrayProperties *typeProperty = &(typeEntry->attribute->attr.typeDescriptor->properties.arrayProperties);
             AST_NODE *exprNode;
             int space = getArraySpace(idEntry);
             if(isGlobal(idEntry))
-                fprintf(fp, "\t_%s .space %d\n", idName, space);
+                fprintf(fp, "\t_%s: .space %d\n", idName, space);
             else{
                 idEntry->offset = ARoffset + space - 4;
                 ARoffset += space;
@@ -244,7 +243,7 @@ void genDeclareFunction(AST_NODE* declarationNode){
     SymbolTableEntry *idEntry = idNode->semantic_value.identifierSemanticValue.symbolTableEntry;
     prologue(idName);
     // declareFunctionParam(paramListNode, symbolAttr->attr.functionSignature);
-    int ARsize = genBlockNode(blockNode);
+    genBlockNode(blockNode);
     epilogue(idName);
 }
 
@@ -358,7 +357,6 @@ void genAssignmentStmt(AST_NODE* assignmentNode)
     AST_NODE *rightNode = leftNode->rightSibling;
     SymbolTableEntry *leftEntry = leftNode->semantic_value.identifierSemanticValue.symbolTableEntry;
     int offset = leftEntry->offset;
-
     genExprNode(rightNode);
     if(leftNode->dataType == INT_TYPE){
         int t_reg_num = get_t_reg();
@@ -389,13 +387,14 @@ void genIfStmt(AST_NODE* ifNode)
 {
     AST_NODE *ifTest = ifNode->child;
     AST_NODE *stmtNode = ifTest->rightSibling;
+    int elseIndex = labelIndex++;
     genExprNode(ifTest);
-    fprintf(fp, "\tbnez t%d, L%d\n", ifTest->place, labelIndex);
-    labelIndex++;
+    fprintf(fp, "\tbnez t%d, L%d\n", ifTest->place, elseIndex);
     free_t_reg(ifTest->place);
     // gen stmt for successful ifTest
     genStmtNode(stmtNode);
     // gen stmt for else
+    fprintf(fp, "L%d:\n", elseIndex);
     genStmtNode(stmtNode->rightSibling);
 }
 
@@ -407,28 +406,24 @@ void genWriteFunction(AST_NODE* functionCallNode)
     // write a constant string
     if(toWrite->nodeType == CONST_VALUE_NODE){
         fprintf(fp, ".text\n");
-        int t_reg_num = get_reg();
-        fprintf(fp, "la t%d, _CONSTANT_%d\n", t_reg_num, toWrite->place);
-        fprintf(fp, "mv a0, t%d\n", t_reg_num);
-        fprintf(fp, "jal _write_str\n");
-        free_t_reg(toWrite->place);
+        int t_reg_num = get_t_reg();
+        fprintf(fp, "\tlui a5, %%hi(_CONSTANT_%d)\n", toWrite->place);
+        fprintf(fp, "\taddi a0, a5, %%lo(_CONSTANT_%d)\n", toWrite->place);
+        // fprintf(fp, "\tla t%d, _CONSTANT_%d\n", t_reg_num, toWrite->place);
+        // fprintf(fp, "\tmv a0, t%d\n", t_reg_num);
+        fprintf(fp, "\tjal _write_str\n");
         free_t_reg(t_reg_num);
     }
     else if(toWrite->dataType == INT_TYPE){
-        int t_reg_num = get_reg();
-        fprintf(fp, "mv a0, t%d\n", toWrite->place);
-        fprintf(fp, "jal _write_int\n");
+        int t_reg_num = get_t_reg();
+        fprintf(fp, "\tmv a0, t%d\n", toWrite->place);
+        fprintf(fp, "\tjal _write_int\n");
         free_t_reg(toWrite->place);
         free_t_reg(t_reg_num);
     }
     else{
         // write float
     }
-    return;
-}
-
-void genFreadFunction(){
-    fprintf(fp, "\tjal _read_float\n");
     return;
 }
 
@@ -456,6 +451,7 @@ void genFunctionCall(AST_NODE* functionCallNode)
     fprintf(fp, "\tjal _start_%s\n", idName);
 }
 
+/*
 void getFormalParameterType(Parameter *formalParameter, char *formalParameterType){
     TypeDescriptor *typeDescriptor = formalParameter->type;
     if(typeDescriptor->kind == SCALAR_TYPE_DESCRIPTOR){
@@ -513,7 +509,6 @@ void getActualParameterType(AST_NODE *actualParameter, char *actualParameterType
     }
 }
 
-/*
 void checkParameterPassing(Parameter* formalParameter, AST_NODE* actualParameter, AST_NODE *idNode)
 {
     while(formalParameter != NULL && actualParameter != NULL){
@@ -562,8 +557,13 @@ void genExprNode(AST_NODE* exprNode)
             // float const
         }
         else{
+            char *string = exprNode->semantic_value.const1->const_u.sc;
+            char buf[1024];
+            int len = strlen(string);
+            strncpy(buf, string, len - 1);
             fprintf(fp, ".data\n");
-            fprintf(fp, "\t_CONSTANT_%d: .ascii \"%s\\000\"", constLabelIndex, exprNode->semantic_value.const1->const_u.sc);
+            fprintf(fp, "\t_CONSTANT_%d: .ascii \"%s\\000\"\n", constLabelIndex, &buf[1]);
+            fprintf(fp, "\t.align 3\n");
             exprNode->place = constLabelIndex;
             constLabelIndex++;
         }
@@ -606,9 +606,11 @@ void genExprNode(AST_NODE* exprNode)
             // global variable
             if(isGlobal(identifier)){
                 if(exprNode->dataType == INT_TYPE){
-                    fprintf(fp, "\tla t%d, _%s\n", t_reg_num, identifierName);
-                    fprintf(fp, "\tlw t%d, 0(t%d)\n", t_reg_num, t_reg_num);
+                    int addr_reg_num = get_t_reg();
+                    fprintf(fp, "\tla t%d, _%s\n", addr_reg_num, identifierName);
+                    fprintf(fp, "\tlw t%d, 0(t%d)\n", t_reg_num, addr_reg_num);
                     exprNode->place = t_reg_num;
+                    free_t_reg(addr_reg_num);
                 }
                 else{
                     // global float
@@ -675,7 +677,7 @@ void genExprNode(AST_NODE* exprNode)
         // put result in register of left operand
         // free register of right operand
         // set place of this node to register of left operand
-        switch(exprNode->exprSemanticValue.op.binaryOp){
+        switch(exprNode->semantic_value.exprSemanticValue.op.binaryOp){
             case BINARY_OP_ADD:
                 if(dataType == INT_TYPE){
                     fprintf(fp, "\tadd t%d, t%d, t%d\n", leftNode->place, leftNode->place, rightNode->place);
@@ -810,7 +812,7 @@ void genExprNode(AST_NODE* exprNode)
 
 void genArrayElement(AST_NODE *idNode, int offset_reg){
     AST_NODE *arrayDimension = idNode->child;
-    SymbolTable *idEntry = idNode->semantic_value.identifierSemanticValue.SymbolTableEntry;
+    SymbolTableEntry *idEntry = idNode->semantic_value.identifierSemanticValue.symbolTableEntry;
     ArrayProperties property = idEntry->attribute->attr.typeDescriptor->properties.arrayProperties;
     int nowDimension = 0;
     if(isGlobal(idEntry)){
@@ -825,7 +827,7 @@ void genArrayElement(AST_NODE *idNode, int offset_reg){
                 loadConst(offsetPerShift, t_reg_num);
                 fprintf(fp, "\tmul t%d, t%d, t%d\n", arrayDimension->place, arrayDimension->place, t_reg_num);
             }
-            fprintf(fp, "\tslli, t%d, t%d, 2\n", arrayDimension->place, arrayDimension->place);
+            fprintf(fp, "\tslli t%d, t%d, 2\n", arrayDimension->place, arrayDimension->place);
             fprintf(fp, "\tadd t%d, t%d, t%d\n", offset_reg, offset_reg, arrayDimension->place);
             free_t_reg(arrayDimension->place);
             free_t_reg(t_reg_num);
@@ -846,7 +848,7 @@ void genArrayElement(AST_NODE *idNode, int offset_reg){
                 loadConst(offsetPerShift, t_reg_num);
                 fprintf(fp, "\tmul t%d, t%d, t%d\n", arrayDimension->place, arrayDimension->place, t_reg_num);
             }
-            fprintf(fp, "\tslli, t%d, t%d, 2\n", arrayDimension->place, arrayDimension->place);
+            fprintf(fp, "\tslli t%d, t%d, 2\n", arrayDimension->place, arrayDimension->place);
             fprintf(fp, "\tsub t%d, t%d, t%d\n", offset_reg, offset_reg, arrayDimension->place);
             free_t_reg(arrayDimension->place);
             free_t_reg(t_reg_num);
@@ -869,7 +871,7 @@ void genReturnStmt(AST_NODE* returnNode)
     char *functionName = idNode->semantic_value.identifierSemanticValue.identifierName;
     genExprNode(returnItem);
     fprintf(fp, "\tmv a0, t%d\n", returnItem->place);
-    fprintf(fp, "\tj, _end_%s\n", functionName);
+    fprintf(fp, "\tj _end_%s\n", functionName);
     free_t_reg(returnItem->place);
 }
 
@@ -887,9 +889,6 @@ void genBlockNode(AST_NODE* blockNode)
         stmtList = blockNode->child;
     }
     if(declList != NULL){
-        if(blockNode->parent->nodeType == DECLARATION_NODE && \
-           blockNode->parent->semantic_value.declSemanticValue.kind == FUNCTION_DECL)
-            fprintf(fp, ".data\n");
         AST_NODE *decl = declList->child;
         while(decl != NULL){
             genDeclarationNode(decl);
@@ -897,9 +896,11 @@ void genBlockNode(AST_NODE* blockNode)
         }
     }
     if(stmtList != NULL){
+        /*
         if(blockNode->parent->nodeType == DECLARATION_NODE && \
            blockNode->parent->semantic_value.declSemanticValue.kind == FUNCTION_DECL)
             fprintf(fp, ".text\n");
+        */
         AST_NODE *stmt = stmtList->child;
         while(stmt != NULL){
             genStmtNode(stmt);

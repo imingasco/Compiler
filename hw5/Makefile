@@ -5,14 +5,17 @@ CC = gcc -g
 LEX = flex
 YACC = bison -v
 YACCFLAG = -d
-LIBS = -ll 
+LIBS = -lfl 
 
-parser: parser.tab.o alloc.o functions.o symbolTable.o semanticAnalysis.o 
-	$(CC) -o $(TARGET) parser.tab.o alloc.o functions.o symbolTable.o semanticAnalysis.o $(LIBS)
+parser: parser.tab.o alloc.o functions.o symbolTable.o semanticAnalysis.o codeGen.o
+	$(CC) -o $(TARGET) parser.tab.o alloc.o functions.o symbolTable.o semanticAnalysis.o codeGen.o $(LIBS)
 
-parser.tab.o: parser.tab.c lex.yy.c alloc.o functions.c symbolTable.o semanticAnalysis.o
+parser.tab.o: parser.tab.c lex.yy.c alloc.o functions.c symbolTable.o semanticAnalysis.o codeGen.o
 	$(CC) -c parser.tab.c
     
+codeGen.o: codeGen.c symbolTable.o
+	$(CC) -c codeGen.c
+
 semanticAnalysis.o: semanticAnalysis.c symbolTable.o
 	$(CC) -c semanticAnalysis.c
 

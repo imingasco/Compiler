@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 /* A Bison parser, made by GNU Bison 3.7.2.  */
 
 /* Bison interface for Yacc-like parsers in C
@@ -10,19 +9,6 @@
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation, either version 3 of the License, or
    (at your option) any later version.
-=======
-/* A Bison parser, made by GNU Bison 2.3.  */
-
-/* Skeleton interface for Bison's Yacc-like parsers in C
-
-   Copyright (C) 1984, 1989, 1990, 2000, 2001, 2002, 2003, 2004, 2005, 2006
-   Free Software Foundation, Inc.
-
-   This program is free software; you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2, or (at your option)
-   any later version.
->>>>>>> a9679d1deb218693b9cd4e950d729464f3176adf
 
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -30,13 +16,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-<<<<<<< HEAD
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
-=======
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
->>>>>>> a9679d1deb218693b9cd4e950d729464f3176adf
 
 /* As a special exception, you may create a larger work that contains
    part or all of the Bison parser skeleton and distribute that work
@@ -51,7 +31,6 @@
    This special exception was added by the Free Software Foundation in
    version 2.2 of Bison.  */
 
-<<<<<<< HEAD
 /* DO NOT RELY ON FEATURES THAT ARE NOT DOCUMENTED in the manual,
    especially those whose name start with YY_ or yy_.  They are
    private implementation details that can be changed or removed.  */
@@ -138,7 +117,6 @@ extern YYSTYPE yylval;
 int yyparse (void);
 
 #endif /* !YY_YY_PARSER_TAB_H_INCLUDED  */
-=======
 /* Tokens.  */
 #ifndef YYTOKENTYPE
 # define YYTOKENTYPE
@@ -241,3 +219,4 @@ typedef union YYSTYPE
 extern YYSTYPE yylval;
 
 >>>>>>> a9679d1deb218693b9cd4e950d729464f3176adf
+>>>>>>> 1e4f13f3b3cabff95e93b8bc7b3d78e17acbe8a6
