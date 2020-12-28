@@ -110,10 +110,13 @@ void loadConst(int constVal, int reg_num){
 
 void loadFloat(float constVal, int reg_num){
     int t_reg_num = get_t_reg();
-    fprintf(fp, "FC_%d:\n", floatLabelIndex);
-    fprintf(fp, "\t.word %d\n", constVal);
+    int *ptr = &constVal;
+    fprintf(fp, ".data\n");
+    fprintf(fp, "\tFC_%d: .word %d\n", floatLabelIndex, *ptr);
+    fprintf(fp, ".text\n");
     fprintf(fp, "\tla t%d, FC_%d\n", t_reg_num, floatLabelIndex);
     fprintf(fp, "\tflw ft%d, 0(t%d)\n", reg_num, t_reg_num);
+    floatLabelIndex++;
     free_t_reg(t_reg_num);
 }
 
@@ -877,9 +880,13 @@ void genExprNode(AST_NODE* exprNode)
                 }
                 else{
                     t_reg_num = get_t_reg();
+                    /*
+                    fprintf(fp, "\tfsub.s ft%d, ft%d, ft%d\n", leftNode->place, leftNode->place, rightNode->place);
+                    fprintf(fp, "\tfmv.x.w t%d, ft%d\n", t_reg_num, leftNode->place);
+                    fprintf(fp, "\tsnez t%d, t%d\n", t_reg_num, t_reg_num);
+                    */
                     fprintf(fp, "\tfeq.s t%d, ft%d, ft%d\n", t_reg_num, leftNode->place, rightNode->place);
-                    // 0 -> 1, 1 -> 0
-                    fprintf(fp, "\tslti t%d, t%d, 1\n", t_reg_num, t_reg_num);
+                    fprintf(fp, "\tseqz t%d, t%d\n", t_reg_num, t_reg_num);
                     free_ft_reg(leftNode->place);
                     free_ft_reg(rightNode->place);
                     exprNode->place = t_reg_num;

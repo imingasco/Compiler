@@ -1225,7 +1225,10 @@ void evaluateExprValue(AST_NODE* exprNode)
     }
     else{
         exprNode->semantic_value.exprSemanticValue.isConstEval = 0;
-        exprNode->dataType = getBiggerType(leftNode->dataType, rightNode->dataType);
+        if(isRelativeOperation(exprNode))
+            exprNode->dataType = INT_TYPE;
+        else
+            exprNode->dataType = getBiggerType(leftNode->dataType, rightNode->dataType);
     }
     return;
 }
