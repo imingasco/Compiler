@@ -110,7 +110,7 @@ void loadConst(int constVal, int reg_num){
 
 void loadFloat(float constVal, int reg_num){
     int t_reg_num = get_t_reg();
-    int *ptr = &constVal;
+    float *ptr = &constVal;
     fprintf(fp, ".data\n");
     fprintf(fp, "\tFC_%d: .word %d\n", floatLabelIndex, *ptr);
     fprintf(fp, ".text\n");
