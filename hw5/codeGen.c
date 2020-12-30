@@ -72,6 +72,7 @@ void prologue(char *functionName){
     offset += 8;
     for(int i = 0; i < 8; i++, offset += 4)
         fprintf(fp, "\tfsw ft%d, %d(sp)\n", i, offset);
+    fflush(fp);
     return;
 }
 
@@ -93,6 +94,7 @@ void epilogue(char *functionName){
     fprintf(fp, "\tjr ra\n");
     fprintf(fp, ".data\n");
     fprintf(fp, "\t_frameSize_%s: .word %d\n", functionName, 180 + ARoffset);
+    fflush(fp);
     ARoffset = 4;
     return;
 }
@@ -105,6 +107,7 @@ void loadConst(int constVal, int reg_num){
     lower = constVal << 20 >> 20;
     fprintf(fp, "\tlui t%d, %d\n", reg_num, upper);
     fprintf(fp, "\taddi t%d, t%d, %d\n", reg_num, reg_num, lower);
+    fflush(fp);
 }
 
 void loadFloat(float constVal, int reg_num){
@@ -115,6 +118,7 @@ void loadFloat(float constVal, int reg_num){
     fprintf(fp, ".text\n");
     fprintf(fp, "\tla t%d, FC_%d\n", t_reg_num, floatLabelIndex);
     fprintf(fp, "\tflw ft%d, 0(t%d)\n", reg_num, t_reg_num);
+    fflush(fp);
     floatLabelIndex++;
     free_t_reg(t_reg_num);
 }
@@ -250,6 +254,7 @@ void genDeclareVariable(AST_NODE *declarationNode){
             }
         }
         idNode = idNode->rightSibling;
+	fflush(fp);
     }
 }
 
@@ -353,6 +358,7 @@ void genWhileStmt(AST_NODE* whileNode)
         testExprRoot->place = t_reg_num;
     }
     fprintf(fp, "\tbnez t%d, L%d\n", testExprRoot->place, successLabelIndex);
+    fflush(fp);
     free_t_reg(testExprRoot->place);
 }
 
@@ -432,6 +438,7 @@ void genAssignmentStmt(AST_NODE* assignmentNode)
         free_t_reg(rightNode->place);
     else
         free_ft_reg(rightNode->place);
+    fflush(fp);
     return;
 }
 
@@ -459,6 +466,7 @@ void genIfStmt(AST_NODE* ifNode)
     fprintf(fp, "L%d:\n", elseIndex);
     genStmtNode(stmtNode->rightSibling);
     fprintf(fp, "ifExit_%d:\n", exitIndex);
+    fflush(fp);
 }
 
 void genWriteFunction(AST_NODE* functionCallNode)
@@ -487,6 +495,7 @@ void genWriteFunction(AST_NODE* functionCallNode)
         free_ft_reg(toWrite->place);
         // write float
     }
+    fflush(fp);
     return;
 }
 
@@ -512,6 +521,7 @@ void genFunctionCall(AST_NODE* functionCallNode)
     SymbolTableEntry *idEntry = idNode->semantic_value.identifierSemanticValue.symbolTableEntry;
     // genParameterPassing(idEntry->attribute->attr.functionSignature->parameterList, paramNode, idNode);
     fprintf(fp, "\tjal _start_%s\n", idName);
+    fflush(fp);
 }
 
 /*
@@ -635,6 +645,7 @@ void genExprNode(AST_NODE* exprNode)
             exprNode->place = constLabelIndex;
             constLabelIndex++;
         }
+	fflush(fp);
         return;
     }
     // function call node
@@ -652,6 +663,7 @@ void genExprNode(AST_NODE* exprNode)
             fprintf(fp, "\tfmv.s ft%d, fa0\n", ft_reg_num);
             exprNode->place = ft_reg_num;
         }
+	fflush(fp);
         return;
     }
     // identifier node
@@ -702,6 +714,7 @@ void genExprNode(AST_NODE* exprNode)
             fprintf(fp, "\tflw ft%d, -%d(fp)\n", ft_reg_num, identifier->offset);
             exprNode->place = ft_reg_num;
         }
+	fflush(fp);
         return;
     }
     // nonterminal nodes
@@ -744,6 +757,7 @@ void genExprNode(AST_NODE* exprNode)
                 }
                 break;
         }
+	fflush(fp);
     }
     else{
         // for short-circuit
@@ -1006,6 +1020,7 @@ void genExprNode(AST_NODE* exprNode)
                 exprNode->place = leftNode->place;
                 break;
         }
+	fflush(fp);
     }
     return;
 }
@@ -1030,6 +1045,7 @@ void genArrayElement(AST_NODE *idNode, int offset_reg){
             }
             fprintf(fp, "\tslli t%d, t%d, 2\n", arrayDimension->place, arrayDimension->place);
             fprintf(fp, "\tadd t%d, t%d, t%d\n", offset_reg, offset_reg, arrayDimension->place);
+	    fflush(fp);
             free_t_reg(arrayDimension->place);
             free_t_reg(t_reg_num);
             nowDimension++; 
@@ -1051,12 +1067,14 @@ void genArrayElement(AST_NODE *idNode, int offset_reg){
             }
             fprintf(fp, "\tslli t%d, t%d, 2\n", arrayDimension->place, arrayDimension->place);
             fprintf(fp, "\tsub t%d, t%d, t%d\n", offset_reg, offset_reg, arrayDimension->place);
+	    fflush(fp);
             free_t_reg(arrayDimension->place);
             free_t_reg(t_reg_num);
             nowDimension++; 
             arrayDimension = arrayDimension->rightSibling;
         }
         fprintf(fp, "\tsub t%d, fp, t%d\n", offset_reg, offset_reg);
+	fflush(fp);
     }
 }
 
@@ -1083,6 +1101,7 @@ void genReturnStmt(AST_NODE* returnNode)
         free_ft_reg(returnItem->place);
     }
     fprintf(fp, "\tj _end_%s\n", functionName);
+    fflush(fp);
 }
 
 
