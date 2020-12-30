@@ -217,8 +217,10 @@ void genDeclareVariable(AST_NODE *declarationNode){
                     if(isGlobal(idEntry)){
                         if(idNode->dataType == INT_TYPE)
                             fprintf(fp, "\t_%s: .word %d\n", idName, exprNode->semantic_value.const1->const_u.intval);
-                        else
-                            fprintf(fp, "\t_%s: .word %d\n", idName, exprNode->semantic_value.const1->const_u.fval);
+                        else{
+                            int *ptr = &(exprNode->semantic_value.const1->const_u.fval);
+                            fprintf(fp, "\t_%s: .word %d\n", idName, *ptr);
+                        }
                     }
                     else{
                         idEntry->offset = ARoffset;
@@ -970,6 +972,7 @@ void genExprNode(AST_NODE* exprNode)
                     fprintf(fp, "\tbnez t%d, L%d\n", t_reg_num, failLabelIndex);
                     free_ft_reg(rightNode->place);
                     free_ft_reg(ft_reg_num);
+                    free_t_reg(t_reg_num);
                 }
                 loadConst(1, leftNode->place);
                 fprintf(fp, "\tj L%d\n", nextLabelIndex);
@@ -1011,6 +1014,7 @@ void genExprNode(AST_NODE* exprNode)
                     fprintf(fp, "\tbeqz t%d, L%d\n", t_reg_num, successLabelIndex);
                     free_ft_reg(rightNode->place);
                     free_ft_reg(ft_reg_num);
+                    free_t_reg(t_reg_num);
                 }
                 loadConst(0, leftNode->place);
                 fprintf(fp, "\tj L%d\n", nextLabelIndex);
