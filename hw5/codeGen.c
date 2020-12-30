@@ -103,6 +103,8 @@ void loadConst(int constVal, int reg_num){
     else{
         int upper = constVal >> 12;
         int lower = constVal & 0x00000FFF;
+        if(lower >= 2048)
+            lower -= 4096;
         fprintf(fp, "\tlui t%d, %d\n", reg_num, upper);
         fprintf(fp, "\tori t%d, t%d, %d\n", reg_num, reg_num, lower);
     }
@@ -110,7 +112,7 @@ void loadConst(int constVal, int reg_num){
 
 void loadFloat(float constVal, int reg_num){
     int t_reg_num = get_t_reg();
-    float *ptr = &constVal;
+    int *ptr = &constVal;
     fprintf(fp, ".data\n");
     fprintf(fp, "\tFC_%d: .word %d\n", floatLabelIndex, *ptr);
     fprintf(fp, ".text\n");
@@ -349,9 +351,9 @@ void genWhileStmt(AST_NODE* whileNode)
     // case: while(a + 1.1), where a is a float
     if(testExprRoot->dataType == FLOAT_TYPE){
         int t_reg_num = get_t_reg();
-        fprintf(fp, "\tfmv.x.w t%d, ft%d\n", t_reg_num, ifTest->place);
-        free_ft_reg(ifTest->place);
-        ifTest->place = t_reg_num;
+        fprintf(fp, "\tfmv.x.w t%d, ft%d\n", t_reg_num, testExprRoot->place);
+        free_ft_reg(testExprRoot->place);
+        testExprRoot->place = t_reg_num;
     }
     fprintf(fp, "\tbnez t%d, L%d\n", testExprRoot->place, successLabelIndex);
     free_t_reg(testExprRoot->place);
@@ -1075,10 +1077,19 @@ void genReturnStmt(AST_NODE* returnNode)
     AST_NODE *typeNode = parentNode->child;
     AST_NODE *idNode = typeNode->rightSibling;
     char *functionName = idNode->semantic_value.identifierSemanticValue.identifierName;
+    SymbolTableEntry *entry = idNode->semantic_value.identifierSemanticValue.symbolTableEntry;
     genExprNode(returnItem);
-    fprintf(fp, "\tmv a0, t%d\n", returnItem->place);
+    if(entry->attribute->attr.functionSignature->returnType == INT_TYPE){
+        // convert float to int
+        fprintf(fp, "\tmv a0, t%d\n", returnItem->place);
+        free_t_reg(returnItem->place);
+    }
+    else{
+        // convert int to float
+        fprintf(fp, "\tfmv.s fa0, ft%d\n", returnItem->place);
+        free_ft_reg(returnItem->place);
+    }
     fprintf(fp, "\tj _end_%s\n", functionName);
-    free_t_reg(returnItem->place);
 }
 
 
