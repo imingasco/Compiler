@@ -469,7 +469,7 @@ void genWriteFunction(AST_NODE* functionCallNode)
     AST_NODE *toWrite = functionCallNode->child->rightSibling->child;
     genExprNode(toWrite);
     // write a constant string
-    if(toWrite->nodeType == CONST_VALUE_NODE){
+    if(toWrite->dataType == CONST_STRING_TYPE){
         fprintf(fp, ".text\n");
         fprintf(fp, "\tlui a5, %%hi(_CONSTANT_%d)\n", toWrite->place);
         fprintf(fp, "\taddi a0, a5, %%lo(_CONSTANT_%d)\n", toWrite->place);
