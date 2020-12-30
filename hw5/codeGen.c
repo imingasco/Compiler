@@ -98,16 +98,13 @@ void epilogue(char *functionName){
 }
 
 void loadConst(int constVal, int reg_num){
-    if(constVal < 2048 && constVal >= -2048)
-        fprintf(fp, "\taddi t%d, x0, %d\n", reg_num, constVal);
-    else{
-        int upper = constVal >> 12;
-        int lower = constVal & 0x00000FFF;
-        if(lower >= 2048)
-            lower -= 4096;
-        fprintf(fp, "\tlui t%d, %d\n", reg_num, upper);
-        fprintf(fp, "\tori t%d, t%d, %d\n", reg_num, reg_num, lower);
-    }
+    int upper = constVal >> 12;
+    int lower = constVal & 0x00000FFF;
+    if(lower >> 11)
+        upper++;
+    lower = constVal << 20 >> 20;
+    fprintf(fp, "\tlui t%d, %d\n", reg_num, upper);
+    fprintf(fp, "\taddi t%d, t%d, %d\n", reg_num, reg_num, lower);
 }
 
 void loadFloat(float constVal, int reg_num){
@@ -472,27 +469,22 @@ void genWriteFunction(AST_NODE* functionCallNode)
     // write a constant string
     if(toWrite->nodeType == CONST_VALUE_NODE){
         fprintf(fp, ".text\n");
-        int t_reg_num = get_t_reg();
         fprintf(fp, "\tlui a5, %%hi(_CONSTANT_%d)\n", toWrite->place);
         fprintf(fp, "\taddi a0, a5, %%lo(_CONSTANT_%d)\n", toWrite->place);
         // fprintf(fp, "\tla t%d, _CONSTANT_%d\n", t_reg_num, toWrite->place);
         // fprintf(fp, "\tmv a0, t%d\n", t_reg_num);
         fprintf(fp, "\tjal _write_str\n");
-        free_t_reg(t_reg_num);
+        free_t_reg(toWrite->place);
     }
     else if(toWrite->dataType == INT_TYPE){
-        int t_reg_num = get_t_reg();
         fprintf(fp, "\tmv a0, t%d\n", toWrite->place);
         fprintf(fp, "\tjal _write_int\n");
         free_t_reg(toWrite->place);
-        free_t_reg(t_reg_num);
     }
     else{
-        int t_reg_num = get_t_reg();
         fprintf(fp, "\tfmv.s fa0, ft%d\n", toWrite->place);
         fprintf(fp, "\tjal _write_float\n");
         free_ft_reg(toWrite->place);
-        free_t_reg(t_reg_num);
         // write float
     }
     return;
@@ -637,7 +629,8 @@ void genExprNode(AST_NODE* exprNode)
             int len = strlen(string);
             strncpy(buf, string, len - 1);
             fprintf(fp, ".data\n");
-            fprintf(fp, "\t_CONSTANT_%d: .ascii \"%s\\000\"\n", constLabelIndex, &buf[1]);
+            fprintf(fp, "\t_CONSTANT_%d: .string \"%s\\000\"\n", constLabelIndex, &buf[1]);
+            //fprintf(fp, "\t_CONSTANT_%d: .string %s\n", constLabelIndex, string);
             // fprintf(fp, "\t.align 3\n");
             exprNode->place = constLabelIndex;
             constLabelIndex++;
