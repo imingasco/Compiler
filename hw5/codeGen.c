@@ -932,28 +932,24 @@ void genExprNode(AST_NODE* exprNode)
                 if(leftNode->dataType == INT_TYPE)
                     fprintf(fp, "\tbeqz t%d, L%d\n", leftNode->place, failLabelIndex);
                 else{
-                    zeroLoaded = 1;
                     t_reg_num = get_t_reg();
                     ft_reg_num = get_ft_reg();
                     fprintf(fp, "\tfmv.w.x ft%d, x0\n", ft_reg_num);
                     fprintf(fp, "\tfeq.s t%d, ft%d, ft%d\n", t_reg_num, leftNode->place, ft_reg_num);
                     fprintf(fp, "\tbnez t%d, L%d\n", t_reg_num, failLabelIndex);
                     free_ft_reg(leftNode->place);
+                    free_ft_reg(ft_reg_num);
                     leftNode->place = t_reg_num;
                 }
                 genExprNode(rightNode);
                 if(rightNode->dataType == INT_TYPE){
-                    if(zeroLoaded)
-                        free_ft_reg(ft_reg_num);
                     fprintf(fp, "\tbeqz t%d, L%d\n", rightNode->place, failLabelIndex);
                     free_t_reg(rightNode->place);
                 }
                 else{
                     t_reg_num = get_t_reg();
-                    if(!zeroLoaded){
-                        ft_reg_num = get_ft_reg();
-                        fprintf(fp, "\tfmv.w.x ft%d, x0\n", ft_reg_num);
-                    }
+                    ft_reg_num = get_ft_reg();
+                    fprintf(fp, "\tfmv.w.x ft%d, x0\n", ft_reg_num);
                     fprintf(fp, "\tfeq.s t%d, ft%d, ft%d\n", t_reg_num, rightNode->place, ft_reg_num);
                     fprintf(fp, "\tbnez t%d, L%d\n", t_reg_num, failLabelIndex);
                     free_ft_reg(rightNode->place);
@@ -974,28 +970,24 @@ void genExprNode(AST_NODE* exprNode)
                 if(leftNode->dataType == INT_TYPE)
                     fprintf(fp, "\tbnez t%d, L%d\n", leftNode->place, successLabelIndex);
                 else{
-                    zeroLoaded = 1;
                     t_reg_num = get_t_reg();
                     ft_reg_num = get_ft_reg();
                     fprintf(fp, "\tfmv.w.x ft%d, x0\n", ft_reg_num);
                     fprintf(fp, "\tfeq.s t%d, ft%d, ft%d\n", t_reg_num, leftNode->place, ft_reg_num);
                     fprintf(fp, "\tbeqz t%d, L%d\n", t_reg_num, successLabelIndex);
                     free_ft_reg(leftNode->place);
+                    free_ft_reg(ft_reg_num);
                     leftNode->place = t_reg_num;
                 }
                 genExprNode(rightNode);
                 if(rightNode->dataType == INT_TYPE){
-                    if(zeroLoaded)
-                        free_ft_reg(ft_reg_num);
                     fprintf(fp, "\tbnez t%d, L%d\n", rightNode->place, successLabelIndex);
                     free_t_reg(rightNode->place);
                 }
                 else{
                     t_reg_num = get_t_reg();
-                    if(!zeroLoaded){
-                        ft_reg_num = get_ft_reg();
-                        fprintf(fp, "\tfmv.w.x ft%d, x0\n", ft_reg_num);
-                    }
+                    ft_reg_num = get_ft_reg();
+                    fprintf(fp, "\tfmv.w.x ft%d, x0\n", ft_reg_num);
                     fprintf(fp, "\tfeq.s t%d, ft%d, ft%d\n", t_reg_num, rightNode->place, ft_reg_num);
                     fprintf(fp, "\tbeqz t%d, L%d\n", t_reg_num, successLabelIndex);
                     free_ft_reg(rightNode->place);
