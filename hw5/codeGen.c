@@ -347,7 +347,12 @@ void genWhileStmt(AST_NODE* whileNode)
     fprintf(fp, "L%d:\n", failLabelIndex);
     genExprNode(testExprRoot);
     // case: while(a + 1.1), where a is a float
-    //
+    if(testExprRoot->dataType == FLOAT_TYPE){
+        int t_reg_num = get_t_reg();
+        fprintf(fp, "\tfmv.x.w t%d, ft%d\n", t_reg_num, ifTest->place);
+        free_ft_reg(ifTest->place);
+        ifTest->place = t_reg_num;
+    }
     fprintf(fp, "\tbnez t%d, L%d\n", testExprRoot->place, successLabelIndex);
     free_t_reg(testExprRoot->place);
 }
