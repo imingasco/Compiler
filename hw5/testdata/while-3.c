@@ -29,10 +29,8 @@ void DoWhile() {
 int MAIN() {
   seed = 7122;
   DoWhile();
-  /*
   seed = 123;
   DoWhile();
   seed = 456;
   DoWhile();
-  */
 }
