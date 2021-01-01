@@ -858,10 +858,12 @@ void checkWriteFunction(AST_NODE* functionCallNode)
     checkExprNode(toWrite);
     isInvalidExpr(toWrite, INVALID_VOID_TYPE + INVALID_PTR_TYPE);
     // write a constant, should be string
+    /*
     if(toWrite->nodeType == CONST_VALUE_NODE && toWrite->dataType != CONST_STRING_TYPE)
         printErrorMsg(functionCallNode, NOT_WRITABLE);
+    */
     // write an constant expression, invalid
-    else if(toWrite->nodeType == EXPR_NODE && toWrite->semantic_value.exprSemanticValue.isConstEval == 1)
+    if(toWrite->nodeType == EXPR_NODE && toWrite->semantic_value.exprSemanticValue.isConstEval == 1)
         printErrorMsg(functionCallNode, NOT_WRITABLE);
     // others: write identifier & write function call(handled in checkExprNode)
     return;
