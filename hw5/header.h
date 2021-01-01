@@ -105,10 +105,12 @@ typedef struct EXPRSemanticValue
     
     int isConstEval;
 
+    C_type constType;
+    
     union
     {
         int iValue;
-        float fValue;
+        double fValue;
     } constEvalValue;
 
     union
@@ -169,5 +171,6 @@ typedef struct AST_NODE AST_NODE;
 
 AST_NODE *Allocate(AST_TYPE type);
 void semanticAnalysis(AST_NODE *root);
+void codeGen(AST_NODE *root);
 
 #endif
