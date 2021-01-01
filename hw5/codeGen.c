@@ -8,6 +8,7 @@ int constLabelIndex = 1;
 int floatLabelIndex = 1;
 int labelIndex = 1;
 int ifExitLabelIndex = 1;
+int whileExitLabelIndex = 1;
 short t_reg_status[7];
 short ft_reg_status[8];
 
@@ -354,16 +355,18 @@ void genWhileStmt(AST_NODE* whileNode)
     AST_NODE *stmtNode = testExprRoot->rightSibling;
     
     int successLabelIndex = labelIndex++;
+    int successJumpIndex = labelIndex++;
     int failLabelIndex = labelIndex++;
+    int exitLabelIndex = whileExitLabelIndex++;
     // unconditional jump to check
     int t_reg_num = get_t_reg();
     fprintf(fp, "\tla t%d, L%d\n", t_reg_num, failLabelIndex);
     fprintf(fp, "\tjalr x0, 0(t%d)\n", t_reg_num);
     free_t_reg(t_reg_num);
     fprintf(fp, "L%d:\n", successLabelIndex);
-    // gen block if test succeed
+    // gen success block
     genStmtNode(stmtNode);
-    // check test
+    // gen while test
     fprintf(fp, "L%d:\n", failLabelIndex);
     genExprNode(testExprRoot);
     // case: while(a + 1.1), where a is a float
@@ -373,7 +376,13 @@ void genWhileStmt(AST_NODE* whileNode)
         free_ft_reg(testExprRoot->place);
         testExprRoot->place = t_reg_num;
     }
-    fprintf(fp, "\tbnez t%d, L%d\n", testExprRoot->place, successLabelIndex);
+    t_reg_num = get_t_reg();
+    fprintf(fp, "\tbeqz t%d, while_Exit_%d\n", testExprRoot->place, exitLabelIndex);
+    fprintf(fp, "L%d:\n", successJumpIndex);
+    fprintf(fp, "\tla t%d, L%d\n", t_reg_num, successLabelIndex);
+    fprintf(fp, "\tjalr x0, 0(t%d)\n", t_reg_num);
+    free_t_reg(t_reg_num);
+    fprintf(fp, "while_Exit_%d:\n", exitLabelIndex);
     fflush(fp);
     free_t_reg(testExprRoot->place);
 }
@@ -463,8 +472,11 @@ void genIfStmt(AST_NODE* ifNode)
 {
     AST_NODE *ifTest = ifNode->child;
     AST_NODE *stmtNode = ifTest->rightSibling;
+    int successIndex = labelIndex++;
+    int elseJumpIndex = labelIndex++;
     int elseIndex = labelIndex++;
     int exitIndex = ifExitLabelIndex++;
+    int else_reg_num;
     genExprNode(ifTest);
     // case: if(a + 1.1), where a is a float
     if(ifTest->dataType == FLOAT_TYPE){
@@ -473,10 +485,20 @@ void genIfStmt(AST_NODE* ifNode)
         free_ft_reg(ifTest->place);
         ifTest->place = t_reg_num;
     }
-    fprintf(fp, "\tbeqz t%d, L%d\n", ifTest->place, elseIndex);
+    fprintf(fp, "\tbeqz t%d, L%d\n", ifTest->place, elseJumpIndex);
+    fprintf(fp, "\tj L%d\n", successIndex);
+
+    else_reg_num = get_t_reg();
+    fprintf(fp, "L%d:\n", elseJumpIndex);
+    fprintf(fp, "\tla t%d, L%d\n", else_reg_num, elseIndex);
+    fprintf(fp, "\tjalr x0, 0(t%d)\n", else_reg_num);
+    
     free_t_reg(ifTest->place);
+    free_t_reg(else_reg_num);
+    fprintf(fp, "L%d:\n", successIndex);
     // gen stmt for successful ifTest
     genStmtNode(stmtNode);
+
     int t_reg_num = get_t_reg();
     fprintf(fp, "\tla t%d, ifExit_%d\n",t_reg_num, exitIndex);
     fprintf(fp, "\tjalr x0, 0(t%d)\n", t_reg_num);
@@ -493,6 +515,7 @@ void genWriteFunction(AST_NODE* functionCallNode)
     // check if there is one argument
     AST_NODE *toWrite = functionCallNode->child->rightSibling->child;
     genExprNode(toWrite);
+    int t_reg_num = get_t_reg();
     // write a constant string
     if(toWrite->dataType == CONST_STRING_TYPE){
         fprintf(fp, ".text\n");
@@ -500,20 +523,27 @@ void genWriteFunction(AST_NODE* functionCallNode)
         fprintf(fp, "\taddi a0, a5, %%lo(_CONSTANT_%d)\n", toWrite->place);
         // fprintf(fp, "\tla t%d, _CONSTANT_%d\n", t_reg_num, toWrite->place);
         // fprintf(fp, "\tmv a0, t%d\n", t_reg_num);
-        fprintf(fp, "\tjal _write_str\n");
+	fprintf(fp, "\tla t%d, _write_str\n", t_reg_num);
+        fprintf(fp, "\tjalr ra, 0(t%d)\n", t_reg_num);
+	// fprintf(fp, "\tjal _write_str\n");
         free_t_reg(toWrite->place);
     }
     else if(toWrite->dataType == INT_TYPE){
         fprintf(fp, "\tmv a0, t%d\n", toWrite->place);
-        fprintf(fp, "\tjal _write_int\n");
+	fprintf(fp, "\tla t%d, _write_int\n", t_reg_num);
+        fprintf(fp, "\tjalr ra, 0(t%d)\n", t_reg_num);
+	// fprintf(fp, "\tjal _write_int\n");
         free_t_reg(toWrite->place);
     }
     else{
         fprintf(fp, "\tfmv.s fa0, ft%d\n", toWrite->place);
-        fprintf(fp, "\tjal _write_float\n");
+	fprintf(fp, "\tla t%d, _write_float\n", t_reg_num);
+        fprintf(fp, "\tjalr ra, 0(t%d)\n", t_reg_num);
+	// fprintf(fp, "\tjal _write_float\n");
         free_ft_reg(toWrite->place);
         // write float
     }
+    free_t_reg(t_reg_num);
     fflush(fp);
     return;
 }
@@ -529,17 +559,26 @@ void genFunctionCall(AST_NODE* functionCallNode)
         return;
     }
     else if(strcmp(idName, "read") == 0){
-        fprintf(fp, "\tjal _read_int\n");
+	int t_reg_num = get_t_reg();
+	fprintf(fp, "\tla t%d, _read_int\n", t_reg_num);
+	fprintf(fp, "\tjalr ra, 0(t%d)\n", t_reg_num);
+	free_t_reg(t_reg_num);
         return;
     }
     else if(strcmp(idName, "fread") == 0){
-        fprintf(fp, "\tjal _read_float\n");
+	int t_reg_num = get_t_reg();
+	fprintf(fp, "\tla t%d, _read_float\n", t_reg_num);
+	fprintf(fp, "\tjalr ra, 0(t%d)\n", t_reg_num);
+	free_t_reg(t_reg_num);
         return;
     }
 
     SymbolTableEntry *idEntry = idNode->semantic_value.identifierSemanticValue.symbolTableEntry;
+    int t_reg_num = get_t_reg();
     // genParameterPassing(idEntry->attribute->attr.functionSignature->parameterList, paramNode, idNode);
-    fprintf(fp, "\tjal _start_%s\n", idName);
+    fprintf(fp, "\tla t%d, _start_%s\n", t_reg_num, idName);
+    fprintf(fp, "\tjalr ra, 0(t%d)\n", t_reg_num);
+    free_t_reg(t_reg_num);
     fflush(fp);
 }
 
