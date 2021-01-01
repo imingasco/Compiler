@@ -100,13 +100,24 @@ void epilogue(char *functionName){
 }
 
 void loadConst(int constVal, int reg_num){
-    int upper = constVal >> 12;
-    int lower = constVal & 0x00000FFF;
-    if(lower >> 11)
-        upper++;
-    lower = constVal << 20 >> 20;
-    fprintf(fp, "\tlui t%d, %d\n", reg_num, upper);
+    unsigned int upper = (unsigned int)constVal >> 12;
+    // int lower = constVal & 0x00000FFF;
+    int lower = constVal << 20 >> 20;
+    if(constVal >= -2048 && constVal < 2048){
+	fprintf(fp, "\taddi t%d, x0, %d\n", reg_num, constVal);
+	return;
+    }
+    if(lower >> 11 && upper < (1 << 20) - 1){
+	upper++;
+    }
+    fprintf(fp, "\tlui t%d, %u\n", reg_num, upper);
     fprintf(fp, "\taddi t%d, t%d, %d\n", reg_num, reg_num, lower);
+    if(lower >> 11 && upper == (1 << 20) - 1){
+	int t_reg_num = get_t_reg();
+	loadConst(4096, t_reg_num);
+	fprintf(fp, "\tadd t%d, t%d, t%d\n", reg_num, reg_num, t_reg_num);
+	free_t_reg(t_reg_num);
+    }
     fflush(fp);
 }
 
@@ -345,7 +356,10 @@ void genWhileStmt(AST_NODE* whileNode)
     int successLabelIndex = labelIndex++;
     int failLabelIndex = labelIndex++;
     // unconditional jump to check
-    fprintf(fp, "\tj L%d\n", failLabelIndex);
+    int t_reg_num = get_t_reg();
+    fprintf(fp, "\tla t%d, L%d\n", t_reg_num, failLabelIndex);
+    fprintf(fp, "\tjalr x0, 0(t%d)\n", t_reg_num);
+    free_t_reg(t_reg_num);
     fprintf(fp, "L%d:\n", successLabelIndex);
     // gen block if test succeed
     genStmtNode(stmtNode);
@@ -463,7 +477,10 @@ void genIfStmt(AST_NODE* ifNode)
     free_t_reg(ifTest->place);
     // gen stmt for successful ifTest
     genStmtNode(stmtNode);
-    fprintf(fp, "\tj ifExit_%d\n", exitIndex);
+    int t_reg_num = get_t_reg();
+    fprintf(fp, "\tla t%d, ifExit_%d\n",t_reg_num, exitIndex);
+    fprintf(fp, "\tjalr x0, 0(t%d)\n", t_reg_num);
+    free_t_reg(t_reg_num);
     // gen stmt for else
     fprintf(fp, "L%d:\n", elseIndex);
     genStmtNode(stmtNode->rightSibling);
@@ -707,13 +724,27 @@ void genExprNode(AST_NODE* exprNode)
         // identifier is a local int
         else if(exprNode->dataType == INT_TYPE){
             int t_reg_num = get_t_reg();
-            fprintf(fp, "\tlw t%d, -%d(fp)\n", t_reg_num, identifier->offset);
+	    if(identifier->offset >= 2048){
+		loadConst(identifier->offset, t_reg_num);
+		fprintf(fp, "\tsub t%d, fp, t%d\n", t_reg_num, t_reg_num);
+		fprintf(fp, "\tlw t%d, 0(t%d)\n", t_reg_num, t_reg_num);
+	    }
+	    else
+            	fprintf(fp, "\tlw t%d, -%d(fp)\n", t_reg_num, identifier->offset);
             exprNode->place = t_reg_num;
         }
         // identifier is a local float
         else{
             int ft_reg_num = get_ft_reg();
-            fprintf(fp, "\tflw ft%d, -%d(fp)\n", ft_reg_num, identifier->offset);
+	    if(identifier->offset >= 2048){
+		int t_reg_num = get_t_reg();
+		loadConst(identifier->offset, t_reg_num);
+		fprintf(fp, "\tsub t%d, fp, t%d\n", t_reg_num, t_reg_num);
+		fprintf(fp, "\tflw ft%d, 0(t%d)\n", ft_reg_num, t_reg_num);
+		free_t_reg(t_reg_num);
+	    }
+	    else
+            	fprintf(fp, "\tflw ft%d, -%d(fp)\n", ft_reg_num, identifier->offset);
             exprNode->place = ft_reg_num;
         }
 	fflush(fp);
@@ -971,7 +1002,10 @@ void genExprNode(AST_NODE* exprNode)
                     free_t_reg(t_reg_num);
                 }
                 loadConst(1, leftNode->place);
-                fprintf(fp, "\tj L%d\n", nextLabelIndex);
+		t_reg_num = get_t_reg();
+		fprintf(fp, "\tla t%d ,L%d\n", t_reg_num, nextLabelIndex);
+		fprintf(fp, "\tjalr x0, 0(t%d)\n", t_reg_num);
+		free_t_reg(t_reg_num);
                 fprintf(fp, "L%d:\n", failLabelIndex);
                 loadConst(0, leftNode->place);
                 fprintf(fp, "L%d:\n", nextLabelIndex);
@@ -1009,7 +1043,10 @@ void genExprNode(AST_NODE* exprNode)
                     free_t_reg(t_reg_num);
                 }
                 loadConst(0, leftNode->place);
-                fprintf(fp, "\tj L%d\n", nextLabelIndex);
+		t_reg_num = get_t_reg();
+		fprintf(fp, "\tla t%d, L%d\n", t_reg_num, nextLabelIndex);
+		fprintf(fp, "\tjalr x0, 0(t%d)\n", t_reg_num);
+		free_t_reg(t_reg_num);
                 fprintf(fp, "L%d:\n", successLabelIndex);
                 loadConst(1, leftNode->place);
                 fprintf(fp, "L%d:\n", nextLabelIndex);
