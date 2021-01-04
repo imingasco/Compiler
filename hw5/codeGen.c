@@ -8,6 +8,7 @@ int constLabelIndex = 1;
 int floatLabelIndex = 1;
 int labelIndex = 1;
 int ifExitLabelIndex = 1;
+int whileExitLabelIndex = 1;
 short t_reg_status[7];
 short ft_reg_status[8];
 
@@ -72,6 +73,7 @@ void prologue(char *functionName){
     offset += 8;
     for(int i = 0; i < 8; i++, offset += 4)
         fprintf(fp, "\tfsw ft%d, %d(sp)\n", i, offset);
+    fflush(fp);
     return;
 }
 
@@ -93,19 +95,31 @@ void epilogue(char *functionName){
     fprintf(fp, "\tjr ra\n");
     fprintf(fp, ".data\n");
     fprintf(fp, "\t_frameSize_%s: .word %d\n", functionName, 180 + ARoffset);
+    fflush(fp);
     ARoffset = 4;
     return;
 }
 
 void loadConst(int constVal, int reg_num){
-    if(constVal < 2048 && constVal >= -2048)
-        fprintf(fp, "\taddi t%d, x0, %d\n", reg_num, constVal);
-    else{
-        int upper = constVal >> 12;
-        int lower = constVal & 0x00000FFF;
-        fprintf(fp, "\tlui t%d, %d\n", reg_num, upper);
-        fprintf(fp, "\tori t%d, t%d, %d\n", reg_num, reg_num, lower);
+    unsigned int upper = (unsigned int)constVal >> 12;
+    // int lower = constVal & 0x00000FFF;
+    int lower = constVal << 20 >> 20;
+    if(constVal >= -2048 && constVal < 2048){
+	fprintf(fp, "\taddi t%d, x0, %d\n", reg_num, constVal);
+	return;
     }
+    if(lower >> 11 && upper < (1 << 20) - 1){
+	upper++;
+    }
+    fprintf(fp, "\tlui t%d, %u\n", reg_num, upper);
+    fprintf(fp, "\taddi t%d, t%d, %d\n", reg_num, reg_num, lower);
+    if(lower >> 11 && upper == (1 << 20) - 1){
+	int t_reg_num = get_t_reg();
+	loadConst(4096, t_reg_num);
+	fprintf(fp, "\tadd t%d, t%d, t%d\n", reg_num, reg_num, t_reg_num);
+	free_t_reg(t_reg_num);
+    }
+    fflush(fp);
 }
 
 void loadFloat(float constVal, int reg_num){
@@ -116,6 +130,7 @@ void loadFloat(float constVal, int reg_num){
     fprintf(fp, ".text\n");
     fprintf(fp, "\tla t%d, FC_%d\n", t_reg_num, floatLabelIndex);
     fprintf(fp, "\tflw ft%d, 0(t%d)\n", reg_num, t_reg_num);
+    fflush(fp);
     floatLabelIndex++;
     free_t_reg(t_reg_num);
 }
@@ -214,8 +229,10 @@ void genDeclareVariable(AST_NODE *declarationNode){
                     if(isGlobal(idEntry)){
                         if(idNode->dataType == INT_TYPE)
                             fprintf(fp, "\t_%s: .word %d\n", idName, exprNode->semantic_value.const1->const_u.intval);
-                        else
-                            fprintf(fp, "\t_%s: .word %d\n", idName, exprNode->semantic_value.const1->const_u.fval);
+                        else{
+                            int *ptr = &(exprNode->semantic_value.const1->const_u.fval);
+                            fprintf(fp, "\t_%s: .word %d\n", idName, *ptr);
+                        }
                     }
                     else{
                         idEntry->offset = ARoffset;
@@ -251,6 +268,7 @@ void genDeclareVariable(AST_NODE *declarationNode){
             }
         }
         idNode = idNode->rightSibling;
+	fflush(fp);
     }
 }
 
@@ -337,18 +355,35 @@ void genWhileStmt(AST_NODE* whileNode)
     AST_NODE *stmtNode = testExprRoot->rightSibling;
     
     int successLabelIndex = labelIndex++;
+    int successJumpIndex = labelIndex++;
     int failLabelIndex = labelIndex++;
+    int exitLabelIndex = whileExitLabelIndex++;
     // unconditional jump to check
-    fprintf(fp, "\tj L%d\n", failLabelIndex);
+    int t_reg_num = get_t_reg();
+    fprintf(fp, "\tla t%d, L%d\n", t_reg_num, failLabelIndex);
+    fprintf(fp, "\tjalr x0, 0(t%d)\n", t_reg_num);
+    free_t_reg(t_reg_num);
     fprintf(fp, "L%d:\n", successLabelIndex);
-    // gen block if test succeed
+    // gen success block
     genStmtNode(stmtNode);
-    // check test
+    // gen while test
     fprintf(fp, "L%d:\n", failLabelIndex);
     genExprNode(testExprRoot);
     // case: while(a + 1.1), where a is a float
-    //
-    fprintf(fp, "\tbnez t%d, L%d\n", testExprRoot->place, successLabelIndex);
+    if(testExprRoot->dataType == FLOAT_TYPE){
+        int t_reg_num = get_t_reg();
+        fprintf(fp, "\tfmv.x.w t%d, ft%d\n", t_reg_num, testExprRoot->place);
+        free_ft_reg(testExprRoot->place);
+        testExprRoot->place = t_reg_num;
+    }
+    t_reg_num = get_t_reg();
+    fprintf(fp, "\tbeqz t%d, while_Exit_%d\n", testExprRoot->place, exitLabelIndex);
+    fprintf(fp, "L%d:\n", successJumpIndex);
+    fprintf(fp, "\tla t%d, L%d\n", t_reg_num, successLabelIndex);
+    fprintf(fp, "\tjalr x0, 0(t%d)\n", t_reg_num);
+    free_t_reg(t_reg_num);
+    fprintf(fp, "while_Exit_%d:\n", exitLabelIndex);
+    fflush(fp);
     free_t_reg(testExprRoot->place);
 }
 
@@ -428,6 +463,7 @@ void genAssignmentStmt(AST_NODE* assignmentNode)
         free_t_reg(rightNode->place);
     else
         free_ft_reg(rightNode->place);
+    fflush(fp);
     return;
 }
 
@@ -436,8 +472,11 @@ void genIfStmt(AST_NODE* ifNode)
 {
     AST_NODE *ifTest = ifNode->child;
     AST_NODE *stmtNode = ifTest->rightSibling;
+    int successIndex = labelIndex++;
+    int elseJumpIndex = labelIndex++;
     int elseIndex = labelIndex++;
     int exitIndex = ifExitLabelIndex++;
+    int else_reg_num;
     genExprNode(ifTest);
     // case: if(a + 1.1), where a is a float
     if(ifTest->dataType == FLOAT_TYPE){
@@ -446,15 +485,29 @@ void genIfStmt(AST_NODE* ifNode)
         free_ft_reg(ifTest->place);
         ifTest->place = t_reg_num;
     }
-    fprintf(fp, "\tbeqz t%d, L%d\n", ifTest->place, elseIndex);
+    fprintf(fp, "\tbeqz t%d, L%d\n", ifTest->place, elseJumpIndex);
+    fprintf(fp, "\tj L%d\n", successIndex);
+
+    else_reg_num = get_t_reg();
+    fprintf(fp, "L%d:\n", elseJumpIndex);
+    fprintf(fp, "\tla t%d, L%d\n", else_reg_num, elseIndex);
+    fprintf(fp, "\tjalr x0, 0(t%d)\n", else_reg_num);
+    
     free_t_reg(ifTest->place);
+    free_t_reg(else_reg_num);
+    fprintf(fp, "L%d:\n", successIndex);
     // gen stmt for successful ifTest
     genStmtNode(stmtNode);
-    fprintf(fp, "\tj ifExit_%d\n", exitIndex);
+
+    int t_reg_num = get_t_reg();
+    fprintf(fp, "\tla t%d, ifExit_%d\n",t_reg_num, exitIndex);
+    fprintf(fp, "\tjalr x0, 0(t%d)\n", t_reg_num);
+    free_t_reg(t_reg_num);
     // gen stmt for else
     fprintf(fp, "L%d:\n", elseIndex);
     genStmtNode(stmtNode->rightSibling);
     fprintf(fp, "ifExit_%d:\n", exitIndex);
+    fflush(fp);
 }
 
 void genWriteFunction(AST_NODE* functionCallNode)
@@ -462,32 +515,36 @@ void genWriteFunction(AST_NODE* functionCallNode)
     // check if there is one argument
     AST_NODE *toWrite = functionCallNode->child->rightSibling->child;
     genExprNode(toWrite);
+    int t_reg_num = get_t_reg();
     // write a constant string
-    if(toWrite->nodeType == CONST_VALUE_NODE){
+    if(toWrite->dataType == CONST_STRING_TYPE){
         fprintf(fp, ".text\n");
-        int t_reg_num = get_t_reg();
         fprintf(fp, "\tlui a5, %%hi(_CONSTANT_%d)\n", toWrite->place);
         fprintf(fp, "\taddi a0, a5, %%lo(_CONSTANT_%d)\n", toWrite->place);
         // fprintf(fp, "\tla t%d, _CONSTANT_%d\n", t_reg_num, toWrite->place);
         // fprintf(fp, "\tmv a0, t%d\n", t_reg_num);
-        fprintf(fp, "\tjal _write_str\n");
-        free_t_reg(t_reg_num);
+	fprintf(fp, "\tla t%d, _write_str\n", t_reg_num);
+        fprintf(fp, "\tjalr ra, 0(t%d)\n", t_reg_num);
+	// fprintf(fp, "\tjal _write_str\n");
+        free_t_reg(toWrite->place);
     }
     else if(toWrite->dataType == INT_TYPE){
-        int t_reg_num = get_t_reg();
         fprintf(fp, "\tmv a0, t%d\n", toWrite->place);
-        fprintf(fp, "\tjal _write_int\n");
+	fprintf(fp, "\tla t%d, _write_int\n", t_reg_num);
+        fprintf(fp, "\tjalr ra, 0(t%d)\n", t_reg_num);
+	// fprintf(fp, "\tjal _write_int\n");
         free_t_reg(toWrite->place);
-        free_t_reg(t_reg_num);
     }
     else{
-        int t_reg_num = get_t_reg();
         fprintf(fp, "\tfmv.s fa0, ft%d\n", toWrite->place);
-        fprintf(fp, "\tjal _write_float\n");
+	fprintf(fp, "\tla t%d, _write_float\n", t_reg_num);
+        fprintf(fp, "\tjalr ra, 0(t%d)\n", t_reg_num);
+	// fprintf(fp, "\tjal _write_float\n");
         free_ft_reg(toWrite->place);
-        free_t_reg(t_reg_num);
         // write float
     }
+    free_t_reg(t_reg_num);
+    fflush(fp);
     return;
 }
 
@@ -502,17 +559,27 @@ void genFunctionCall(AST_NODE* functionCallNode)
         return;
     }
     else if(strcmp(idName, "read") == 0){
-        fprintf(fp, "\tjal _read_int\n");
+	int t_reg_num = get_t_reg();
+	fprintf(fp, "\tla t%d, _read_int\n", t_reg_num);
+	fprintf(fp, "\tjalr ra, 0(t%d)\n", t_reg_num);
+	free_t_reg(t_reg_num);
         return;
     }
     else if(strcmp(idName, "fread") == 0){
-        fprintf(fp, "\tjal _read_float\n");
+	int t_reg_num = get_t_reg();
+	fprintf(fp, "\tla t%d, _read_float\n", t_reg_num);
+	fprintf(fp, "\tjalr ra, 0(t%d)\n", t_reg_num);
+	free_t_reg(t_reg_num);
         return;
     }
 
     SymbolTableEntry *idEntry = idNode->semantic_value.identifierSemanticValue.symbolTableEntry;
+    int t_reg_num = get_t_reg();
     // genParameterPassing(idEntry->attribute->attr.functionSignature->parameterList, paramNode, idNode);
-    fprintf(fp, "\tjal _start_%s\n", idName);
+    fprintf(fp, "\tla t%d, _start_%s\n", t_reg_num, idName);
+    fprintf(fp, "\tjalr ra, 0(t%d)\n", t_reg_num);
+    free_t_reg(t_reg_num);
+    fflush(fp);
 }
 
 /*
@@ -630,11 +697,13 @@ void genExprNode(AST_NODE* exprNode)
             int len = strlen(string);
             strncpy(buf, string, len - 1);
             fprintf(fp, ".data\n");
-            fprintf(fp, "\t_CONSTANT_%d: .ascii \"%s\\000\"\n", constLabelIndex, &buf[1]);
+            fprintf(fp, "\t_CONSTANT_%d: .string \"%s\\000\"\n", constLabelIndex, &buf[1]);
+            //fprintf(fp, "\t_CONSTANT_%d: .string %s\n", constLabelIndex, string);
             // fprintf(fp, "\t.align 3\n");
             exprNode->place = constLabelIndex;
             constLabelIndex++;
         }
+	fflush(fp);
         return;
     }
     // function call node
@@ -652,6 +721,7 @@ void genExprNode(AST_NODE* exprNode)
             fprintf(fp, "\tfmv.s ft%d, fa0\n", ft_reg_num);
             exprNode->place = ft_reg_num;
         }
+	fflush(fp);
         return;
     }
     // identifier node
@@ -693,15 +763,30 @@ void genExprNode(AST_NODE* exprNode)
         // identifier is a local int
         else if(exprNode->dataType == INT_TYPE){
             int t_reg_num = get_t_reg();
-            fprintf(fp, "\tlw t%d, -%d(fp)\n", t_reg_num, identifier->offset);
+	    if(identifier->offset >= 2048){
+		loadConst(identifier->offset, t_reg_num);
+		fprintf(fp, "\tsub t%d, fp, t%d\n", t_reg_num, t_reg_num);
+		fprintf(fp, "\tlw t%d, 0(t%d)\n", t_reg_num, t_reg_num);
+	    }
+	    else
+            	fprintf(fp, "\tlw t%d, -%d(fp)\n", t_reg_num, identifier->offset);
             exprNode->place = t_reg_num;
         }
         // identifier is a local float
         else{
             int ft_reg_num = get_ft_reg();
-            fprintf(fp, "\tflw ft%d, -%d(fp)\n", ft_reg_num, identifier->offset);
+	    if(identifier->offset >= 2048){
+		int t_reg_num = get_t_reg();
+		loadConst(identifier->offset, t_reg_num);
+		fprintf(fp, "\tsub t%d, fp, t%d\n", t_reg_num, t_reg_num);
+		fprintf(fp, "\tflw ft%d, 0(t%d)\n", ft_reg_num, t_reg_num);
+		free_t_reg(t_reg_num);
+	    }
+	    else
+            	fprintf(fp, "\tflw ft%d, -%d(fp)\n", ft_reg_num, identifier->offset);
             exprNode->place = ft_reg_num;
         }
+	fflush(fp);
         return;
     }
     // nonterminal nodes
@@ -744,6 +829,7 @@ void genExprNode(AST_NODE* exprNode)
                 }
                 break;
         }
+	fflush(fp);
     }
     else{
         // for short-circuit
@@ -930,35 +1016,35 @@ void genExprNode(AST_NODE* exprNode)
                 if(leftNode->dataType == INT_TYPE)
                     fprintf(fp, "\tbeqz t%d, L%d\n", leftNode->place, failLabelIndex);
                 else{
-                    zeroLoaded = 1;
                     t_reg_num = get_t_reg();
                     ft_reg_num = get_ft_reg();
                     fprintf(fp, "\tfmv.w.x ft%d, x0\n", ft_reg_num);
                     fprintf(fp, "\tfeq.s t%d, ft%d, ft%d\n", t_reg_num, leftNode->place, ft_reg_num);
                     fprintf(fp, "\tbnez t%d, L%d\n", t_reg_num, failLabelIndex);
                     free_ft_reg(leftNode->place);
+                    free_ft_reg(ft_reg_num);
                     leftNode->place = t_reg_num;
                 }
                 genExprNode(rightNode);
                 if(rightNode->dataType == INT_TYPE){
-                    if(zeroLoaded)
-                        free_ft_reg(ft_reg_num);
                     fprintf(fp, "\tbeqz t%d, L%d\n", rightNode->place, failLabelIndex);
                     free_t_reg(rightNode->place);
                 }
                 else{
                     t_reg_num = get_t_reg();
-                    if(!zeroLoaded){
-                        ft_reg_num = get_ft_reg();
-                        fprintf(fp, "\tfmv.w.x ft%d, x0\n", ft_reg_num);
-                    }
+                    ft_reg_num = get_ft_reg();
+                    fprintf(fp, "\tfmv.w.x ft%d, x0\n", ft_reg_num);
                     fprintf(fp, "\tfeq.s t%d, ft%d, ft%d\n", t_reg_num, rightNode->place, ft_reg_num);
                     fprintf(fp, "\tbnez t%d, L%d\n", t_reg_num, failLabelIndex);
                     free_ft_reg(rightNode->place);
                     free_ft_reg(ft_reg_num);
+                    free_t_reg(t_reg_num);
                 }
                 loadConst(1, leftNode->place);
-                fprintf(fp, "\tj L%d\n", nextLabelIndex);
+		t_reg_num = get_t_reg();
+		fprintf(fp, "\tla t%d ,L%d\n", t_reg_num, nextLabelIndex);
+		fprintf(fp, "\tjalr x0, 0(t%d)\n", t_reg_num);
+		free_t_reg(t_reg_num);
                 fprintf(fp, "L%d:\n", failLabelIndex);
                 loadConst(0, leftNode->place);
                 fprintf(fp, "L%d:\n", nextLabelIndex);
@@ -971,41 +1057,42 @@ void genExprNode(AST_NODE* exprNode)
                 if(leftNode->dataType == INT_TYPE)
                     fprintf(fp, "\tbnez t%d, L%d\n", leftNode->place, successLabelIndex);
                 else{
-                    zeroLoaded = 1;
                     t_reg_num = get_t_reg();
                     ft_reg_num = get_ft_reg();
                     fprintf(fp, "\tfmv.w.x ft%d, x0\n", ft_reg_num);
                     fprintf(fp, "\tfeq.s t%d, ft%d, ft%d\n", t_reg_num, leftNode->place, ft_reg_num);
                     fprintf(fp, "\tbeqz t%d, L%d\n", t_reg_num, successLabelIndex);
                     free_ft_reg(leftNode->place);
+                    free_ft_reg(ft_reg_num);
                     leftNode->place = t_reg_num;
                 }
                 genExprNode(rightNode);
                 if(rightNode->dataType == INT_TYPE){
-                    if(zeroLoaded)
-                        free_ft_reg(ft_reg_num);
                     fprintf(fp, "\tbnez t%d, L%d\n", rightNode->place, successLabelIndex);
                     free_t_reg(rightNode->place);
                 }
                 else{
                     t_reg_num = get_t_reg();
-                    if(!zeroLoaded){
-                        ft_reg_num = get_ft_reg();
-                        fprintf(fp, "\tfmv.w.x ft%d, x0\n", ft_reg_num);
-                    }
+                    ft_reg_num = get_ft_reg();
+                    fprintf(fp, "\tfmv.w.x ft%d, x0\n", ft_reg_num);
                     fprintf(fp, "\tfeq.s t%d, ft%d, ft%d\n", t_reg_num, rightNode->place, ft_reg_num);
                     fprintf(fp, "\tbeqz t%d, L%d\n", t_reg_num, successLabelIndex);
                     free_ft_reg(rightNode->place);
                     free_ft_reg(ft_reg_num);
+                    free_t_reg(t_reg_num);
                 }
                 loadConst(0, leftNode->place);
-                fprintf(fp, "\tj L%d\n", nextLabelIndex);
+		t_reg_num = get_t_reg();
+		fprintf(fp, "\tla t%d, L%d\n", t_reg_num, nextLabelIndex);
+		fprintf(fp, "\tjalr x0, 0(t%d)\n", t_reg_num);
+		free_t_reg(t_reg_num);
                 fprintf(fp, "L%d:\n", successLabelIndex);
                 loadConst(1, leftNode->place);
                 fprintf(fp, "L%d:\n", nextLabelIndex);
                 exprNode->place = leftNode->place;
                 break;
         }
+	fflush(fp);
     }
     return;
 }
@@ -1030,6 +1117,7 @@ void genArrayElement(AST_NODE *idNode, int offset_reg){
             }
             fprintf(fp, "\tslli t%d, t%d, 2\n", arrayDimension->place, arrayDimension->place);
             fprintf(fp, "\tadd t%d, t%d, t%d\n", offset_reg, offset_reg, arrayDimension->place);
+	    fflush(fp);
             free_t_reg(arrayDimension->place);
             free_t_reg(t_reg_num);
             nowDimension++; 
@@ -1051,12 +1139,14 @@ void genArrayElement(AST_NODE *idNode, int offset_reg){
             }
             fprintf(fp, "\tslli t%d, t%d, 2\n", arrayDimension->place, arrayDimension->place);
             fprintf(fp, "\tsub t%d, t%d, t%d\n", offset_reg, offset_reg, arrayDimension->place);
+	    fflush(fp);
             free_t_reg(arrayDimension->place);
             free_t_reg(t_reg_num);
             nowDimension++; 
             arrayDimension = arrayDimension->rightSibling;
         }
         fprintf(fp, "\tsub t%d, fp, t%d\n", offset_reg, offset_reg);
+	fflush(fp);
     }
 }
 
@@ -1070,10 +1160,20 @@ void genReturnStmt(AST_NODE* returnNode)
     AST_NODE *typeNode = parentNode->child;
     AST_NODE *idNode = typeNode->rightSibling;
     char *functionName = idNode->semantic_value.identifierSemanticValue.identifierName;
+    SymbolTableEntry *entry = idNode->semantic_value.identifierSemanticValue.symbolTableEntry;
     genExprNode(returnItem);
-    fprintf(fp, "\tmv a0, t%d\n", returnItem->place);
+    if(entry->attribute->attr.functionSignature->returnType == INT_TYPE){
+        // convert float to int
+        fprintf(fp, "\tmv a0, t%d\n", returnItem->place);
+        free_t_reg(returnItem->place);
+    }
+    else{
+        // convert int to float
+        fprintf(fp, "\tfmv.s fa0, ft%d\n", returnItem->place);
+        free_ft_reg(returnItem->place);
+    }
     fprintf(fp, "\tj _end_%s\n", functionName);
-    free_t_reg(returnItem->place);
+    fflush(fp);
 }
 
 
