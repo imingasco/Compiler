@@ -3,7 +3,7 @@ OBJECT = parser.tab.c parser.tab.o lex.yy.c alloc.o functions.o semanticAnalysis
 OUTPUT = parser.output parser.tab.h
 CC = gcc -g
 LEX = flex
-YACC = bison -v
+YACC = bison
 YACCFLAG = -d
 LIBS = -lfl 
 
