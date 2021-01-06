@@ -9,6 +9,7 @@ int floatLabelIndex = 1;
 int labelIndex = 1;
 int ifExitLabelIndex = 1;
 int whileExitLabelIndex = 1;
+int forExitLabelIndex = 1;
 short t_reg_status[7];
 short ft_reg_status[8];
 
@@ -387,7 +388,7 @@ void genWhileStmt(AST_NODE* whileNode)
     free_t_reg(testExprRoot->place);
 }
 
-/*
+
 void genForStmt(AST_NODE* forNode)
 {
     AST_NODE *initAssignExprRoot = forNode->child;
@@ -397,6 +398,10 @@ void genForStmt(AST_NODE* forNode)
     AST_NODE *updateAssignExprRoot = relopExprRoot->rightSibling;
     AST_NODE *updateAssignExpr = updateAssignExprRoot->child;
     AST_NODE *stmtNode = updateAssignExprRoot->rightSibling;
+    int successLabelIndex = labelIndex++;
+    int testLabelIndex = labelIndex++;
+    int incrementLabelIndex = labelIndex++;
+    int exitLabelIndex = forExitLabelIndex++;
     while(initAssignExpr){
         if(initAssignExpr->nodeType == STMT_NODE && initAssignExpr->semantic_value.stmtSemanticValue.kind == ASSIGN_STMT)
             genAssignmentStmt(initAssignExpr);
@@ -405,10 +410,28 @@ void genForStmt(AST_NODE* forNode)
         }
         initAssignExpr = initAssignExpr->rightSibling;
     }
+    fprintf(fp, "L%d:\n", testLabelIndex);
     while(relopExpr){
         genExprNode(relopExpr);
+        if(relopExpr->rightSibling == NULL){
+            if(relopExpr->dataType == FLOAT_TYPE){
+                int t_reg_num = get_t_reg();
+                fprintf(fp, "\tfmv.x.w t%d, ft%d\n", t_reg_num, relopExpr->place);
+                free_ft_reg(relopExpr->place);
+                relopExpr->place = t_reg_num;
+            }
+            fprintf(fp, "\tbeqz t%d, for_Exit_%d\n", relopExpr->place, exitLabelIndex);
+        }
+        else{
+            if(relopExpr->dataType == INT_TYPE)
+                free_t_reg(relopExpr->place);
+            else if(relopExpr->dataType == FLOAT_TYPE)
+                free_ft_reg(relopExpr->place);
+        }
         relopExpr = relopExpr->rightSibling;
     }
+    genStmtNode(stmtNode);
+    fprintf(fp,"L%d:\n", incrementLabelIndex);
     while(updateAssignExpr){
         if(updateAssignExpr->nodeType == STMT_NODE && updateAssignExpr->semantic_value.stmtSemanticValue.kind == ASSIGN_STMT)
             genAssignmentStmt(updateAssignExpr);
@@ -417,10 +440,12 @@ void genForStmt(AST_NODE* forNode)
         }
         updateAssignExpr = updateAssignExpr->rightSibling;
     }
-    genStmtNode(stmtNode);
+    fprintf(fp, "\tj L%d\n", testLabelIndex);
+    fprintf(fp, "for_Exit_%d:\n", exitLabelIndex);
+
     return;
 }
-*/
+
 
 void genAssignmentStmt(AST_NODE* assignmentNode)
 {
@@ -1223,7 +1248,7 @@ void genStmtNode(AST_NODE* stmtNode)
                     genWhileStmt(stmtNode);
                     break;
                 case FOR_STMT:
-                    //genForStmt(stmtNode);
+                    genForStmt(stmtNode);
                     break;
                 case RETURN_STMT:
                     genReturnStmt(stmtNode);

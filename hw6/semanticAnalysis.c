@@ -698,7 +698,10 @@ void checkForStmt(AST_NODE* forNode)
     }
     while(relopExpr){
         checkExprNode(relopExpr);
-        isInvalidExpr(relopExpr, INVALID_PTR_TYPE);
+        if(relopExpr->rightSibling == NULL)
+            isInvalidExpr(relopExpr, INVALID_PTR_TYPE + INVALID_VOID_TYPE);
+        else
+            isInvalidExpr(relopExpr, INVALID_PTR_TYPE);
         relopExpr = relopExpr->rightSibling;
     }
     while(updateAssignExpr){
