@@ -241,7 +241,7 @@ void genDeclareVariable(AST_NODE *declarationNode){
                             int t_reg_num = get_t_reg();
                             int constVal = exprNode->semantic_value.const1->const_u.intval;
                             loadConst(constVal, t_reg_num);
-                            fprintf(fp, "\tsw t%d, -%d(fp)\n", t_reg_num, ARoffset);
+                            fprintf(fp, "\tsw t%d, %d(fp)\n", t_reg_num, -ARoffset);
                             free_t_reg(t_reg_num);
                         }
                         else{
@@ -249,7 +249,7 @@ void genDeclareVariable(AST_NODE *declarationNode){
                             int ft_reg_num = get_ft_reg();
                             float constVal = exprNode->semantic_value.const1->const_u.fval;
                             loadFloat(constVal, ft_reg_num);
-                            fprintf(fp, "\tfsw ft%d, -%d(fp)\n", ft_reg_num, ARoffset);
+                            fprintf(fp, "\tfsw ft%d, %d(fp)\n", ft_reg_num, -ARoffset);
                             free_ft_reg(ft_reg_num);
                         }
                         ARoffset += 4;
@@ -294,6 +294,14 @@ void genDeclareFunction(AST_NODE* declarationNode){
     char *typeName = typeNode->semantic_value.identifierSemanticValue.identifierName;
     SymbolTableEntry *typeEntry = typeNode->semantic_value.identifierSemanticValue.symbolTableEntry;
     SymbolTableEntry *idEntry = idNode->semantic_value.identifierSemanticValue.symbolTableEntry;
+    AST_NODE *parameterNode = paramListNode->child;
+    int parameterCount = 0;
+    while(parameterNode != NULL){
+        AST_NODE *idNode = parameterNode->child->rightSibling;
+        idNode->semantic_value.identifierSemanticValue.symbolTableEntry->offset = -4 * parameterCount - 16;
+        parameterCount++;
+        parameterNode = parameterNode->rightSibling;
+    }
     prologue(idName);
     // declareFunctionParam(paramListNode, symbolAttr->attr.functionSignature);
     genBlockNode(blockNode);
@@ -442,7 +450,7 @@ void genForStmt(AST_NODE* forNode)
     }
     fprintf(fp, "\tj L%d\n", testLabelIndex);
     fprintf(fp, "for_Exit_%d:\n", exitLabelIndex);
-
+    fflush(fp);
     return;
 }
 
@@ -600,10 +608,32 @@ void genFunctionCall(AST_NODE* functionCallNode)
 
     SymbolTableEntry *idEntry = idNode->semantic_value.identifierSemanticValue.symbolTableEntry;
     int t_reg_num = get_t_reg();
-    // genParameterPassing(idEntry->attribute->attr.functionSignature->parameterList, paramNode, idNode);
+    genParameterPassing(idEntry->attribute->attr.functionSignature->parameterList, paramNode, idNode);
     fprintf(fp, "\tla t%d, _start_%s\n", t_reg_num, idName);
     fprintf(fp, "\tjalr ra, 0(t%d)\n", t_reg_num);
+    fprintf(fp, "\tadd sp, sp, %d\n", 4 * idEntry->attribute->attr.functionSignature->parametersCount + 4);
     free_t_reg(t_reg_num);
+    fflush(fp);
+}
+
+void genParameterPassing(Parameter* formalParameter, AST_NODE* actualParameter, AST_NODE *idNode){
+    SymbolTableEntry *idEntry = idNode->semantic_value.identifierSemanticValue.symbolTableEntry;
+    int parametersCount = idEntry->attribute->attr.functionSignature->parametersCount;
+    int parametersOffset = 4 * parametersCount - 4;
+    while(actualParameter != NULL){
+        genExprNode(actualParameter);
+        if(actualParameter->dataType == INT_TYPE){
+            fprintf(fp, "\tsw t%d, %d(sp)\n", actualParameter->place, -parametersOffset);
+            free_t_reg(actualParameter->place);
+        }
+        else if(actualParameter->dataType == FLOAT_TYPE){
+            fprintf(fp, "\tfsw ft%d, %d(sp)\n", actualParameter->place, -parametersOffset);
+            free_ft_reg(actualParameter->place);
+        }
+        parametersOffset -= 4;
+        actualParameter = actualParameter->rightSibling;
+    }
+    fprintf(fp, "\tadd sp, sp, %d\n", -4 * parametersCount - 4);
     fflush(fp);
 }
 
@@ -788,30 +818,30 @@ void genExprNode(AST_NODE* exprNode)
         // identifier is a local int
         else if(exprNode->dataType == INT_TYPE){
             int t_reg_num = get_t_reg();
-	    if(identifier->offset >= 2048){
-		loadConst(identifier->offset, t_reg_num);
-		fprintf(fp, "\tsub t%d, fp, t%d\n", t_reg_num, t_reg_num);
-		fprintf(fp, "\tlw t%d, 0(t%d)\n", t_reg_num, t_reg_num);
-	    }
-	    else
-            	fprintf(fp, "\tlw t%d, -%d(fp)\n", t_reg_num, identifier->offset);
+            if(identifier->offset >= 2048){
+            loadConst(identifier->offset, t_reg_num);
+            fprintf(fp, "\tsub t%d, fp, t%d\n", t_reg_num, t_reg_num);
+            fprintf(fp, "\tlw t%d, 0(t%d)\n", t_reg_num, t_reg_num);
+            }
+	        else
+            	fprintf(fp, "\tlw t%d, %d(fp)\n", t_reg_num, -(identifier->offset));
             exprNode->place = t_reg_num;
         }
         // identifier is a local float
         else{
             int ft_reg_num = get_ft_reg();
-	    if(identifier->offset >= 2048){
-		int t_reg_num = get_t_reg();
-		loadConst(identifier->offset, t_reg_num);
-		fprintf(fp, "\tsub t%d, fp, t%d\n", t_reg_num, t_reg_num);
-		fprintf(fp, "\tflw ft%d, 0(t%d)\n", ft_reg_num, t_reg_num);
-		free_t_reg(t_reg_num);
-	    }
-	    else
-            	fprintf(fp, "\tflw ft%d, -%d(fp)\n", ft_reg_num, identifier->offset);
+            if(identifier->offset >= 2048){
+            int t_reg_num = get_t_reg();
+            loadConst(identifier->offset, t_reg_num);
+            fprintf(fp, "\tsub t%d, fp, t%d\n", t_reg_num, t_reg_num);
+            fprintf(fp, "\tflw ft%d, 0(t%d)\n", ft_reg_num, t_reg_num);
+            free_t_reg(t_reg_num);
+            }
+            else
+                fprintf(fp, "\tflw ft%d, %d(fp)\n", ft_reg_num, -(identifier->offset));
             exprNode->place = ft_reg_num;
         }
-	fflush(fp);
+	    fflush(fp);
         return;
     }
     // nonterminal nodes

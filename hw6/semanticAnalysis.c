@@ -602,21 +602,21 @@ void declareFunctionParam(AST_NODE *paramListNode, FunctionSignature *functionSi
         }
         else{
             declareVariable(paramNode);
-            SymbolAttribute *symbolAttr = (SymbolAttribute *)malloc(sizeof(SymbolAttribute));
-            symbolAttr->attributeKind = VARIABLE_ATTRIBUTE;
-            symbolAttr->attr.typeDescriptor = (TypeDescriptor *)malloc(sizeof(TypeDescriptor));
-            switch (idNode->semantic_value.identifierSemanticValue.kind){
-                case NORMAL_ID:
-                    symbolAttr->attr.typeDescriptor->kind = SCALAR_TYPE_DESCRIPTOR;
-                    symbolAttr->attr.typeDescriptor->properties.dataType = dataType;
-                    break;
-                case ARRAY_ID:
-                    symbolAttr->attr.typeDescriptor->kind = ARRAY_TYPE_DESCRIPTOR;
-                    symbolAttr->attr.typeDescriptor->properties.arrayProperties.elementType = dataType;
-                    getArrayDimensionAndSize(symbolAttr, idNode, 1);
-                    break;  
-            }
-            idNode->semantic_value.identifierSemanticValue.symbolTableEntry = enterSymbol(idName, symbolAttr);
+            // SymbolAttribute *symbolAttr = (SymbolAttribute *)malloc(sizeof(SymbolAttribute));
+            // symbolAttr->attributeKind = VARIABLE_ATTRIBUTE;
+            // symbolAttr->attr.typeDescriptor = (TypeDescriptor *)malloc(sizeof(TypeDescriptor));
+            // switch (idNode->semantic_value.identifierSemanticValue.kind){
+            //     case NORMAL_ID:
+            //         symbolAttr->attr.typeDescriptor->kind = SCALAR_TYPE_DESCRIPTOR;
+            //         symbolAttr->attr.typeDescriptor->properties.dataType = dataType;
+            //         break;
+            //     case ARRAY_ID:
+            //         symbolAttr->attr.typeDescriptor->kind = ARRAY_TYPE_DESCRIPTOR;
+            //         symbolAttr->attr.typeDescriptor->properties.arrayProperties.elementType = dataType;
+            //         getArrayDimensionAndSize(symbolAttr, idNode, 1);
+            //         break;  
+            // }
+            // idNode->semantic_value.identifierSemanticValue.symbolTableEntry = enterSymbol(idName, symbolAttr);
         }
         // construct paramList
         if(dataType != ERROR_TYPE){
