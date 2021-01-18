@@ -812,12 +812,16 @@ void genExprNode(AST_NODE* exprNode)
                 fprintf(fp, "\tlw t%d, 0(t%d)\n", t_reg_num, t_reg_num);
                 exprNode->place = t_reg_num;
             }
-            else{
+            else if(exprNode->dataType == FLOAT_TYPE){
                 // float
                 int ft_reg_num = get_ft_reg();
                 fprintf(fp, "\tflw ft%d, 0(t%d)\n", ft_reg_num, t_reg_num);
                 exprNode->place = ft_reg_num;
                 free_t_reg(t_reg_num);
+            }
+            else{
+                // PTR_TYPE, no need to load anything
+                exprNode->place = t_reg_num;
             }
         }
         // identifier is a global variable
@@ -1202,7 +1206,15 @@ void genArrayElement(AST_NODE *idNode, int offset_reg){
     }
     else{
         int arrayStartOffset = idEntry->offset;
-        loadConst(arrayStartOffset, offset_reg);
+        if(arrayStartOffset < 0){
+            // argument array
+            fprintf(fp, "\tld t%d, %d(fp)\n", offset_reg, -arrayStartOffset);
+        }
+        else{
+            // local array
+            loadConst(arrayStartOffset, offset_reg);
+            fprintf(fp, "\tsub t%d, fp, t%d\n", offset_reg, offset_reg);
+        }
         while(arrayDimension){
             int offsetPerShift = 1;
             int t_reg_num = get_t_reg();
@@ -1214,14 +1226,13 @@ void genArrayElement(AST_NODE *idNode, int offset_reg){
                 fprintf(fp, "\tmul t%d, t%d, t%d\n", arrayDimension->place, arrayDimension->place, t_reg_num);
             }
             fprintf(fp, "\tslli t%d, t%d, 2\n", arrayDimension->place, arrayDimension->place);
-            fprintf(fp, "\tsub t%d, t%d, t%d\n", offset_reg, offset_reg, arrayDimension->place);
+            fprintf(fp, "\tadd t%d, t%d, t%d\n", offset_reg, offset_reg, arrayDimension->place);
 	    fflush(fp);
             free_t_reg(arrayDimension->place);
             free_t_reg(t_reg_num);
             nowDimension++; 
             arrayDimension = arrayDimension->rightSibling;
         }
-        fprintf(fp, "\tsub t%d, fp, t%d\n", offset_reg, offset_reg);
 	fflush(fp);
     }
 }
