@@ -439,6 +439,7 @@ void genForStmt(AST_NODE* forNode)
             free_ft_reg(relopExpr->place);
         relopExpr = relopExpr->rightSibling;
     }
+    fprintf(fp, "L%d:\n", successLabelIndex);
     genStmtNode(stmtNode);
     fprintf(fp,"L%d:\n", incrementLabelIndex);
     while(updateAssignExpr){
@@ -449,7 +450,10 @@ void genForStmt(AST_NODE* forNode)
         }
         updateAssignExpr = updateAssignExpr->rightSibling;
     }
-    fprintf(fp, "\tj L%d\n", testLabelIndex);
+    int t_reg_num = get_t_reg();
+    fprintf(fp, "\tla t%d, L%d\n", t_reg_num, testLabelIndex);
+    fprintf(fp, "\tjalr x0, 0(t%d)\n", t_reg_num);
+    free_t_reg(t_reg_num);
     fprintf(fp, "for_Exit_%d:\n", exitLabelIndex);
     fflush(fp);
     return;
