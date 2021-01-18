@@ -433,12 +433,10 @@ void genForStmt(AST_NODE* forNode)
             }
             fprintf(fp, "\tbeqz t%d, for_Exit_%d\n", relopExpr->place, exitLabelIndex);
         }
-        else{
-            if(relopExpr->dataType == INT_TYPE)
-                free_t_reg(relopExpr->place);
-            else if(relopExpr->dataType == FLOAT_TYPE)
-                free_ft_reg(relopExpr->place);
-        }
+        if(relopExpr->dataType == INT_TYPE)
+            free_t_reg(relopExpr->place);
+        else if(relopExpr->dataType == FLOAT_TYPE)
+            free_ft_reg(relopExpr->place);
         relopExpr = relopExpr->rightSibling;
     }
     genStmtNode(stmtNode);
@@ -467,6 +465,20 @@ void genAssignmentStmt(AST_NODE* assignmentNode)
     int t_reg_num = get_t_reg();
     genExprNode(rightNode);
     // implicit conversion: Hw6
+    if(leftNode->dataType == INT_TYPE && rightNode->dataType == FLOAT_TYPE){
+        int conversion_t_reg_num = get_t_reg();
+        fprintf(fp, "\tfcvt.l.s t%d, ft%d\n", conversion_t_reg_num, rightNode->place);
+        free_ft_reg(rightNode->place);
+        rightNode->place = conversion_t_reg_num;
+        rightNode->dataType = INT_TYPE;
+    }
+    else if(leftNode->dataType == FLOAT_TYPE && rightNode->dataType == INT_TYPE){
+        int conversion_ft_reg_num = get_ft_reg();
+        fprintf(fp, "\tfcvt.s.w ft%d, t%d\n", conversion_ft_reg_num, rightNode->place);
+        free_t_reg(rightNode->place);
+        rightNode->place = conversion_ft_reg_num;
+        rightNode->dataType = FLOAT_TYPE;
+    }
     if(leftEntry->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR){
         // both local and global case are handled in genArrayElement
         // genArrayElement puts address of the element in t_reg_num
@@ -626,21 +638,38 @@ void genParameterPassing(Parameter* formalParameter, AST_NODE* actualParameter, 
     int parametersOffset = 0;
     while(actualParameter != NULL){
         genExprNode(actualParameter);
-        if(actualParameter->dataType == INT_TYPE){
-            fprintf(fp, "\tsw t%d, %d(sp)\n", actualParameter->place, parametersOffset + 8);
-            parametersOffset += 4;
-            free_t_reg(actualParameter->place);
-        }
-        else if(actualParameter->dataType == FLOAT_TYPE){
-            fprintf(fp, "\tfsw ft%d, %d(sp)\n", actualParameter->place, parametersOffset + 8);
-            parametersOffset += 4;
-            free_ft_reg(actualParameter->place);
+        if(formalParameter->type->kind == SCALAR_TYPE_DESCRIPTOR){
+            if(formalParameter->type->properties.dataType == INT_TYPE){
+                if(actualParameter->dataType == FLOAT_TYPE){
+                    int t_reg_num = get_t_reg();
+                    fprintf(fp, "\tfcvt.l.s t%d, ft%d\n", t_reg_num, actualParameter->place);
+                    free_ft_reg(actualParameter->place);
+                    actualParameter->place = t_reg_num;
+                    actualParameter->dataType = INT_TYPE;
+                }
+                fprintf(fp, "\tsw t%d, %d(sp)\n", actualParameter->place, parametersOffset + 8);
+                parametersOffset += 4;
+                free_t_reg(actualParameter->place);
+            }
+            else if(formalParameter->type->properties.dataType == FLOAT_TYPE){
+                if(actualParameter->dataType == INT_TYPE){
+                    int ft_reg_num = get_ft_reg();
+                    fprintf(fp, "\tfcvt.s.l ft%d, t%d\n", ft_reg_num, actualParameter->place);
+                    free_t_reg(actualParameter->place);
+                    actualParameter->place = ft_reg_num;
+                    actualParameter->dataType = FLOAT_TYPE;
+                }
+                fprintf(fp, "\tfsw ft%d, %d(sp)\n", actualParameter->place, parametersOffset + 8);
+                parametersOffset += 4;
+                free_ft_reg(actualParameter->place);
+            }
         }
         else{
             fprintf(fp, "\tsd t%d, %d(sp)\n", actualParameter->place, parametersOffset + 8);
             parametersOffset += 8;
             free_t_reg(actualParameter->place);
         }
+        formalParameter = formalParameter->next;
         actualParameter = actualParameter->rightSibling;
     }
     fflush(fp);
@@ -923,10 +952,20 @@ void genExprNode(AST_NODE* exprNode)
                 dataType = INT_TYPE;
             else if(leftNode->dataType == INT_TYPE){
                 // convert leftNode to float
+                ft_reg_num = get_ft_reg();
+                fprintf(fp, "\tfcvt.s.l ft%d, t%d\n", ft_reg_num, leftNode->place);
+                free_t_reg(leftNode->place);
+                leftNode->place = ft_reg_num;
+                leftNode->dataType = FLOAT_TYPE;
                 dataType = FLOAT_TYPE;
             }
             else if(rightNode->dataType == INT_TYPE){
                 // convert rightNode to float
+                ft_reg_num = get_ft_reg();
+                fprintf(fp, "\tfcvt.s.l ft%d, t%d\n", ft_reg_num, rightNode->place);
+                free_t_reg(rightNode->place);
+                rightNode->place = ft_reg_num;
+                rightNode->dataType = FLOAT_TYPE;
                 dataType = FLOAT_TYPE;
             }
             else
@@ -1098,7 +1137,7 @@ void genExprNode(AST_NODE* exprNode)
                 else{
                     t_reg_num = get_t_reg();
                     ft_reg_num = get_ft_reg();
-                    fprintf(fp, "\tfmv.w.x ft%d, x0\n", ft_reg_num);
+                    fprintf(fp, "\tfcvt.w.x ft%d, x0\n", ft_reg_num);
                     fprintf(fp, "\tfeq.s t%d, ft%d, ft%d\n", t_reg_num, leftNode->place, ft_reg_num);
                     fprintf(fp, "\tbnez t%d, L%d\n", t_reg_num, failLabelIndex);
                     free_ft_reg(leftNode->place);
@@ -1113,7 +1152,7 @@ void genExprNode(AST_NODE* exprNode)
                 else{
                     t_reg_num = get_t_reg();
                     ft_reg_num = get_ft_reg();
-                    fprintf(fp, "\tfmv.w.x ft%d, x0\n", ft_reg_num);
+                    fprintf(fp, "\tfcvt.w.x ft%d, x0\n", ft_reg_num);
                     fprintf(fp, "\tfeq.s t%d, ft%d, ft%d\n", t_reg_num, rightNode->place, ft_reg_num);
                     fprintf(fp, "\tbnez t%d, L%d\n", t_reg_num, failLabelIndex);
                     free_ft_reg(rightNode->place);
@@ -1139,7 +1178,7 @@ void genExprNode(AST_NODE* exprNode)
                 else{
                     t_reg_num = get_t_reg();
                     ft_reg_num = get_ft_reg();
-                    fprintf(fp, "\tfmv.w.x ft%d, x0\n", ft_reg_num);
+                    fprintf(fp, "\tfcvt.w.x ft%d, x0\n", ft_reg_num);
                     fprintf(fp, "\tfeq.s t%d, ft%d, ft%d\n", t_reg_num, leftNode->place, ft_reg_num);
                     fprintf(fp, "\tbeqz t%d, L%d\n", t_reg_num, successLabelIndex);
                     free_ft_reg(leftNode->place);
@@ -1154,7 +1193,7 @@ void genExprNode(AST_NODE* exprNode)
                 else{
                     t_reg_num = get_t_reg();
                     ft_reg_num = get_ft_reg();
-                    fprintf(fp, "\tfmv.w.x ft%d, x0\n", ft_reg_num);
+                    fprintf(fp, "\tfcvt.w.x ft%d, x0\n", ft_reg_num);
                     fprintf(fp, "\tfeq.s t%d, ft%d, ft%d\n", t_reg_num, rightNode->place, ft_reg_num);
                     fprintf(fp, "\tbeqz t%d, L%d\n", t_reg_num, successLabelIndex);
                     free_ft_reg(rightNode->place);
@@ -1251,11 +1290,25 @@ void genReturnStmt(AST_NODE* returnNode)
     genExprNode(returnItem);
     if(entry->attribute->attr.functionSignature->returnType == INT_TYPE){
         // convert float to int
+        if(returnItem->dataType == FLOAT_TYPE){
+            int t_reg_num = get_t_reg();
+            fprintf(fp, "\tfcvt.l.s t%d, ft%d\n", t_reg_num, returnItem->place);
+            free_ft_reg(returnItem->place);
+            returnItem->place = t_reg_num;
+            returnItem->dataType = INT_TYPE;
+        }
         fprintf(fp, "\tmv a0, t%d\n", returnItem->place);
         free_t_reg(returnItem->place);
     }
     else{
         // convert int to float
+        if(returnItem->dataType == INT_TYPE){
+            int ft_reg_num = get_ft_reg();
+            fprintf(fp, "\tfcvt.s.l ft%d, t%d\n", ft_reg_num, returnItem->place);
+            free_t_reg(returnItem->place);
+            returnItem->place = ft_reg_num;
+            returnItem->dataType = FLOAT_TYPE;
+        }
         fprintf(fp, "\tfmv.s fa0, ft%d\n", returnItem->place);
         free_ft_reg(returnItem->place);
     }
