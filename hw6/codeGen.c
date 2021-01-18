@@ -298,8 +298,11 @@ void genDeclareFunction(AST_NODE* declarationNode){
     int parameterCount = 0;
     while(parameterNode != NULL){
         AST_NODE *idNode = parameterNode->child->rightSibling;
-        idNode->semantic_value.identifierSemanticValue.symbolTableEntry->offset = -4 * parameterCount - 16;
-        parameterCount++;
+        idNode->semantic_value.identifierSemanticValue.symbolTableEntry->offset = parameterCount - 16;
+        if(idNode->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR)
+            parameterCount -= 8;
+        else
+            parameterCount -= 4;
         parameterNode = parameterNode->rightSibling;
     }
     prologue(idName);
@@ -608,33 +611,51 @@ void genFunctionCall(AST_NODE* functionCallNode)
 
     SymbolTableEntry *idEntry = idNode->semantic_value.identifierSemanticValue.symbolTableEntry;
     int t_reg_num = get_t_reg();
+    int parameterSpace = getParameterSpace(paramNode);
+    fprintf(fp, "\tadd sp, sp, %d\n", -parameterSpace);
     genParameterPassing(idEntry->attribute->attr.functionSignature->parameterList, paramNode, idNode);
     fprintf(fp, "\tla t%d, _start_%s\n", t_reg_num, idName);
     fprintf(fp, "\tjalr ra, 0(t%d)\n", t_reg_num);
-    fprintf(fp, "\tadd sp, sp, %d\n", 4 * idEntry->attribute->attr.functionSignature->parametersCount + 4);
+    fprintf(fp, "\tadd sp, sp, %d\n", parameterSpace);
     free_t_reg(t_reg_num);
     fflush(fp);
 }
 
 void genParameterPassing(Parameter* formalParameter, AST_NODE* actualParameter, AST_NODE *idNode){
     SymbolTableEntry *idEntry = idNode->semantic_value.identifierSemanticValue.symbolTableEntry;
-    int parametersCount = idEntry->attribute->attr.functionSignature->parametersCount;
-    int parametersOffset = 4 * parametersCount - 4;
+    int parametersOffset = 0;
     while(actualParameter != NULL){
         genExprNode(actualParameter);
         if(actualParameter->dataType == INT_TYPE){
-            fprintf(fp, "\tsw t%d, %d(sp)\n", actualParameter->place, -parametersOffset);
+            fprintf(fp, "\tsw t%d, %d(sp)\n", actualParameter->place, parametersOffset + 8);
+            parametersOffset += 4;
             free_t_reg(actualParameter->place);
         }
         else if(actualParameter->dataType == FLOAT_TYPE){
-            fprintf(fp, "\tfsw ft%d, %d(sp)\n", actualParameter->place, -parametersOffset);
+            fprintf(fp, "\tfsw ft%d, %d(sp)\n", actualParameter->place, parametersOffset + 8);
+            parametersOffset += 4;
             free_ft_reg(actualParameter->place);
         }
-        parametersOffset -= 4;
+        else{
+            fprintf(fp, "\tsd t%d, %d(sp)\n", actualParameter->place, parametersOffset + 8);
+            parametersOffset += 8;
+            free_t_reg(actualParameter->place);
+        }
         actualParameter = actualParameter->rightSibling;
     }
-    fprintf(fp, "\tadd sp, sp, %d\n", -4 * parametersCount - 4);
     fflush(fp);
+}
+
+int getParameterSpace(AST_NODE *paramNode){
+    int parameterSpace = 0;
+    while(paramNode != NULL){
+        if(paramNode->dataType == INT_TYPE || paramNode->dataType == FLOAT_TYPE)
+            parameterSpace += 4;
+        else
+            parameterSpace += 8;
+        paramNode = paramNode->rightSibling;
+    }
+    return parameterSpace;
 }
 
 /*

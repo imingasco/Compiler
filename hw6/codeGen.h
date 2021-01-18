@@ -24,6 +24,7 @@ void genIfStmt(AST_NODE* ifNode);
 void genWriteFunction(AST_NODE* functionCallNode);
 void genFunctionCall(AST_NODE* functionCallNode);
 void genParameterPassing(Parameter* formalParameter, AST_NODE* actualParameter, AST_NODE *idNode);
+int getParameterSpace(AST_NODE *paramNode);
 void genReturnStmt(AST_NODE* returnNode);
 void genExprNode(AST_NODE* exprNode);
 void getFormalParameterType(Parameter *formalParameter, char *formalParameterType);
