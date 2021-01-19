@@ -42,6 +42,16 @@ void free_t_reg(int t_reg_num){
     t_reg_status[t_reg_num] = UNUSED;
 }
 
+void print_t_reg(AST_NODE *node){
+    printf("%d : ", node->linenumber);
+    if(node->nodeType == CONST_VALUE_NODE)
+        printf("%d : ", node->semantic_value.const1->const_u.intval);
+    else if(node->nodeType == IDENTIFIER_NODE)
+        printf("%s : ", node->semantic_value.identifierSemanticValue.identifierName);
+    for(int i = 0; i < 7; i++)
+        printf("%d%c", t_reg_status[i], " \n"[i == 6]);
+}
+
 int get_ft_reg(){
     for(int i = 0; i < 8; i++){
         if(ft_reg_status[i] == UNUSED){
@@ -1258,19 +1268,19 @@ void genArrayElement(AST_NODE *idNode, int offset_reg){
         fprintf(fp, "\tla t%d, _%s\n", offset_reg, idNode->semantic_value.identifierSemanticValue.identifierName);
         while(arrayDimension){
             int offsetPerShift = 1;
-            int t_reg_num = get_t_reg();
             genExprNode(arrayDimension);
             for(int i = nowDimension + 1; i < property.dimension; i++)
                 offsetPerShift *= property.sizeInEachDimension[i];
             if(offsetPerShift > 1){
+                int t_reg_num = get_t_reg();
                 loadConst(offsetPerShift, t_reg_num);
                 fprintf(fp, "\tmul t%d, t%d, t%d\n", arrayDimension->place, arrayDimension->place, t_reg_num);
+                free_t_reg(t_reg_num);
             }
             fprintf(fp, "\tslli t%d, t%d, 2\n", arrayDimension->place, arrayDimension->place);
             fprintf(fp, "\tadd t%d, t%d, t%d\n", offset_reg, offset_reg, arrayDimension->place);
 	    fflush(fp);
             free_t_reg(arrayDimension->place);
-            free_t_reg(t_reg_num);
             nowDimension++; 
             arrayDimension = arrayDimension->rightSibling;
         }
@@ -1288,19 +1298,19 @@ void genArrayElement(AST_NODE *idNode, int offset_reg){
         }
         while(arrayDimension){
             int offsetPerShift = 1;
-            int t_reg_num = get_t_reg();
             genExprNode(arrayDimension);
             for(int i = nowDimension + 1; i < property.dimension; i++)
                 offsetPerShift *= property.sizeInEachDimension[i];
             if(offsetPerShift > 1){
+                int t_reg_num = get_t_reg();
                 loadConst(offsetPerShift, t_reg_num);
                 fprintf(fp, "\tmul t%d, t%d, t%d\n", arrayDimension->place, arrayDimension->place, t_reg_num);
+                free_t_reg(t_reg_num);
             }
             fprintf(fp, "\tslli t%d, t%d, 2\n", arrayDimension->place, arrayDimension->place);
             fprintf(fp, "\tadd t%d, t%d, t%d\n", offset_reg, offset_reg, arrayDimension->place);
 	    fflush(fp);
             free_t_reg(arrayDimension->place);
-            free_t_reg(t_reg_num);
             nowDimension++; 
             arrayDimension = arrayDimension->rightSibling;
         }
