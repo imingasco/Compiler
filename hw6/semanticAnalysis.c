@@ -418,6 +418,7 @@ void declareVariable(AST_NODE *declarationNode){
                         exprNode = idNode->child;
                         symbolAttr->attr.typeDescriptor->kind = SCALAR_TYPE_DESCRIPTOR;
                         symbolAttr->attr.typeDescriptor->properties.dataType = dataType;
+                        idNode->dataType = dataType;
                         checkExprNode(exprNode);
                         isInvalidExpr(exprNode, INVALID_STRING_TYPE + INVALID_VOID_TYPE + INVALID_PTR_TYPE);
                         // global declaration case

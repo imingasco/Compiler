@@ -37,6 +37,7 @@ int get_t_reg(){
     exit(1);
 }
 
+
 void free_t_reg(int t_reg_num){
     t_reg_status[t_reg_num] = UNUSED;
 }
@@ -237,20 +238,39 @@ void genDeclareVariable(AST_NODE *declarationNode){
                     }
                     else{
                         idEntry->offset = ARoffset;
+                        genExprNode(exprNode);
                         if(idNode->dataType == INT_TYPE){
-                            int t_reg_num = get_t_reg();
-                            int constVal = exprNode->semantic_value.const1->const_u.intval;
-                            loadConst(constVal, t_reg_num);
-                            fprintf(fp, "\tsw t%d, %d(fp)\n", t_reg_num, -ARoffset);
-                            free_t_reg(t_reg_num);
+                            if(exprNode->dataType == FLOAT_TYPE){
+                                int t_reg_num = get_t_reg();
+                                fprintf(fp, "\tfcvt.l.s t%d, ft%d\n", t_reg_num, exprNode->place);
+                                free_ft_reg(exprNode->place);
+                                exprNode->place = t_reg_num;
+                                exprNode->dataType = INT_TYPE;
+                            }
+                            fprintf(fp, "\tsw t%d, %d(fp)\n", exprNode->place, -ARoffset);
+                            free_t_reg(exprNode->place);
+                            // int t_reg_num = get_t_reg();
+                            // int constVal = exprNode->semantic_value.const1->const_u.intval;
+                            // loadConst(constVal, t_reg_num);
+                            // fprintf(fp, "\tsw t%d, %d(fp)\n", t_reg_num, -ARoffset);
+                            // free_t_reg(t_reg_num);
                         }
                         else{
                             // floating number
-                            int ft_reg_num = get_ft_reg();
-                            float constVal = exprNode->semantic_value.const1->const_u.fval;
-                            loadFloat(constVal, ft_reg_num);
-                            fprintf(fp, "\tfsw ft%d, %d(fp)\n", ft_reg_num, -ARoffset);
-                            free_ft_reg(ft_reg_num);
+                            if(exprNode->dataType == INT_TYPE){
+                                int ft_reg_num = get_ft_reg();
+                                fprintf(fp, "\tfcvt.s.l ft%d, t%d\n", ft_reg_num, exprNode->place);
+                                free_t_reg(exprNode->place);
+                                exprNode->place = ft_reg_num;
+                                exprNode->dataType = FLOAT_TYPE;
+                            }
+                            fprintf(fp, "\tfsw ft%d, %d(fp)\n", exprNode->place, -ARoffset);
+                            free_ft_reg(exprNode->place);
+                            // int ft_reg_num = get_ft_reg();
+                            // float constVal = exprNode->semantic_value.const1->const_u.fval;
+                            // loadFloat(constVal, ft_reg_num);
+                            // fprintf(fp, "\tfsw ft%d, %d(fp)\n", ft_reg_num, -ARoffset);
+                            // free_ft_reg(ft_reg_num);
                         }
                         ARoffset += 4;
                     }
@@ -418,6 +438,10 @@ void genForStmt(AST_NODE* forNode)
             genAssignmentStmt(initAssignExpr);
         else{
             genExprNode(initAssignExpr);
+            if(initAssignExpr->dataType == INT_TYPE)
+                free_t_reg(initAssignExpr->place);
+            else
+                free_ft_reg(initAssignExpr->place);
         }
         initAssignExpr = initAssignExpr->rightSibling;
     }
@@ -447,6 +471,10 @@ void genForStmt(AST_NODE* forNode)
             genAssignmentStmt(updateAssignExpr);
         else{
             genExprNode(updateAssignExpr);
+            if(updateAssignExpr->dataType == INT_TYPE)
+                free_t_reg(updateAssignExpr->place);
+            else
+                free_ft_reg(updateAssignExpr->place);
         }
         updateAssignExpr = updateAssignExpr->rightSibling;
     }
